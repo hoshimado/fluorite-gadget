@@ -36,6 +36,7 @@ var createPromiseForSqlConnection = function( outJsonData, inputDataObj, sqlConf
 		promise = Promise.reject(); // これで、then()を全てすっ飛ばして catch()へ逝くはず。
 	}else{
 		promise = new Promise(function(resolve,reject){
+			var mssql = factoryImpl.mssql.getInstance();
 			var connect = mssql.connect( sqlConfig );
 			connect.then(function(){
 				outJsonData["result"] = "sql connection is OK!";

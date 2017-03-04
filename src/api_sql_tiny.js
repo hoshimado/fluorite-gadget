@@ -160,7 +160,7 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 		getShowObjectFromGetData( queryFromGet ), 
 		factoryImpl.CONFIG_SQL.getInstance()
 	);
-	
+
 	return promise.then(function( inputData ){
 		return new Promise(function(resolve,reject){
 			var config = factoryImpl.CONFIG_SQL.getInstance();
