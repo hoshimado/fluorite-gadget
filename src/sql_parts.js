@@ -8,7 +8,8 @@ require('date-utils'); // Data() クラスのtoString()を拡張してくれる�
 const debug = require("./debugger.js");
 var lib = require("./factory4require.js");
 var factoryImpl = { // require()を使う代わりに、new Factory() する。
-    "mssql" : new lib.Factory4Require("mssql")  // https://www.npmjs.com/package/mssql
+    "mssql" : new lib.Factory4Require("mssql"),  // https://www.npmjs.com/package/mssql
+	"crypto" : new lib.Factory4Require('crypto')
 };
 
 // UTデバッグ用のHookポイント。運用では外部公開しないメソッドはこっちにまとめる。
@@ -43,7 +44,7 @@ var createPromiseForSqlConnection = function( outJsonData, inputDataObj, sqlConf
 				// outJsonData["information"] = "databese name is [" + CONFIG_SQL.database + "]";
 
 				resolve( inputDataObj );
-			}).catch(function(){
+			}).catch(function( err ){
 				outJsonData[ "errer_on_connection" ] = err;
 				reject();
 			});
@@ -65,7 +66,7 @@ exports.createPromiseForSqlConnection = createPromiseForSqlConnection;
  * @param{String} ハッシュ値の計算方法。cryptoモジュール準拠。とりあえず「md5」設定しておけ。
  */
 var getHashHexStr = function( plainText, algorithm ){
-	var crypto = require('crypto');
+	var crypto = factoryImpl.crypto.getInstance();
 	var hashsum = crypto.createHash(algorithm);
 	hashsum.update(plainText);
 
@@ -95,18 +96,12 @@ var isOwnerValid = function( databaseName, ownerHash ){
 		var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
 		var query_str = "SELECT owners_hash, max_entrys, called_count";
 		query_str += " FROM [" + databaseName + "].dbo.owners_permission";
+		query_str += " WHERE [owners_hash]='" + ownerHash + "'";
 
 		sql_request.query( query_str ).then(function(recordset){
 			var n = recordset.length;
-			var item, is_found = false;
 
-			while( 0<n-- ){
-				item = recordset[n];
-				if( item.owners_hash.indexOf( ownerHash ) == 0 ){
-					is_found = true;
-				}
-			}
-			if( is_found ){
+			if( 0 < n ){
 				resolve();
 			}else{
 				reject({
@@ -194,6 +189,13 @@ var getShowObjectFromGetData = function( getData ){
 		valid_data[ "owner_hash" ] = getData["device_key"];
 		valid_data[ "date_start" ] = getData.date_start ? getData.date_start : date_start.toFormat("YYYY-MM-DD"); // data-utilsモジュールでの拡張を利用。
 		valid_data[ "date_end"   ] = getData.date_end ? getData.date_end : date_end.toFormat("YYYY-MM-DD");
+
+		if( !valid_data.date_start.match(/\d{4,4}-\d{2,2}-\d{2,2}/) ){
+			valid_data[ "invalid" ] = "format of date is wrong.";
+		}
+		if( !valid_data.date_end.match(/\d{4,4}-\d{2,2}-\d{2,2}/) ){
+			valid_data[ "invalid" ] = "format of date is wrong.";
+		}
 	}else{
 		valid_data[ "invalid" ] = "parameter is INVAILD.";
 	}

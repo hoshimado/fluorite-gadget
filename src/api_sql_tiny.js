@@ -110,9 +110,9 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 			});
 		});
 		// 【自己メモ】http://azu.github.io/promises-book/#not-throw-use-reject
-		// 4.3.2. thenでもrejectする
-		// このとき、returnしたものがpromiseオブジェクトである場合、そのpromiseオブジェクトの状態によって、
-		// 次の then に登録されたonFulfilledとonRejectedのうち、どちらが呼ばれるかを決めることができます。
+		// > §4.3.2. thenでもrejectする
+		// > このとき、returnしたものがpromiseオブジェクトである場合、そのpromiseオブジェクトの状態によって、
+		// > 次の then に登録されたonFulfilledとonRejectedのうち、どちらが呼ばれるかを決めることができます。
 	}).then(function( inputData ){
 		return new Promise(function(resolve,reject){
 			var mssql = factoryImpl.mssql.getInstance();
