@@ -1,0 +1,35 @@
+{
+  "name": "fluorite-gadget",
+  "version": "1.0.0",
+  "description": "The tools for the site, fluorite.",
+  "main": "server.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node_modules\\.bin\\mocha",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xingyanhuan/fluorite-gadget.git"
+  },
+  "author": "xingyanhuan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/xingyanhuan/fluorite-gadget/issues"
+  },
+  "homepage": "https://github.com/xingyanhuan/fluorite-gadget#readme",
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.2.0",
+    "promise-test-helper": "^0.2.1",
+    "sinon": "^1.17.6"
+  },
+  "dependencies": {
+    "cheerio-httpcli": "^0.6.9",
+    "date-utils": "^1.2.21",
+    "mssql": "^3.3.0",
+    "qs": "^6.3.0"
+  }
+}
