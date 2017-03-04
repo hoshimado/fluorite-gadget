@@ -35,15 +35,20 @@ describe( "sql_parts.js", function(){
         sql_parts.factoryImpl.mssql.setStub( ORIGINAL.mssql );
     });
 
-    var createStubs4Mssql = function( targetInstance ){
+    /**
+     * @type mssql用のstubを生成して、そのインスタンスをフックする。
+     */
+    var createAndHookStubs4Mssql = function( targetInstance ){
         var stubs = {
-            "Request_query" : sinon.stub()
+            "Request_query" : sinon.stub(),
+            "connect" : sinon.stub()
         };
         targetInstance.factoryImpl.mssql.setStub(
             { 
                 "Request" : function(){ // 「newされる」ので、returnしておけば差替えれる。
                     return {"query" : stubs.Request_query };
-                } 
+                }, 
+                "connect" : stubs.connect
             }
         );
 
@@ -51,9 +56,53 @@ describe( "sql_parts.js", function(){
     };
 
     describe( "::createPromiseForSqlConnection()",function(){
-        it("正常系");
-        it("異常系");
+        it("正常系",function(){
+            var outJsonData = {};
+            var inputDataObj = {};
+            var sqlConfig = {};
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+
+            stubs.connect.onCall(0).returns( Promise.resolve() );
+            return shouldFulfilled(
+                sql_parts.createPromiseForSqlConnection( outJsonData, inputDataObj, sqlConfig )
+            ).then(function( result ){
+                assert( stubs.connect.calledOnce );
+                expect( stubs.connect.getCall(0).args[0] ).to.equal( sqlConfig );
+                expect( outJsonData.result ).to.be.exist;
+                expect( result ).to.equal( inputDataObj );
+            });
+        });
+        it("異常系：その前の認証がエラー", function(){
+            var outJsonData = {};
+            var inputDataObj = { "invalid" : "something is wrong." };
+            var sqlConfig = {};
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+            
+            return shouldRejected(
+                sql_parts.createPromiseForSqlConnection( outJsonData, inputDataObj, sqlConfig )
+            ).catch(function(){
+                assert( stubs.connect.notCalled );
+                expect( outJsonData.result ).to.not.be.exist;
+            });
+        });
+        it("異常系：SQL接続がエラー", function(){
+            var outJsonData = {};
+            var inputDataObj = {};
+            var sqlConfig = {};
+            var EXPECTED_ERROR= {};
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+            
+            stubs.connect.onCall(0).returns( Promise.reject( EXPECTED_ERROR ) );
+            return shouldRejected(
+                sql_parts.createPromiseForSqlConnection( outJsonData, inputDataObj, sqlConfig )
+            ).catch(function(){
+                assert( stubs.connect.calledOnce );
+                expect( stubs.connect.getCall(0).args[0] ).to.equal( sqlConfig );
+                expect( outJsonData.result ).to.not.be.exist;
+            });
+        });
     });
+
 
     describe( "::isDeviceAccessRatePerHourUnder()",function(){
         it("正常系");
@@ -67,63 +116,43 @@ describe( "sql_parts.js", function(){
     })
     // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
     // 本来は、別テーブルでIP含めて管理すべきかも？
-    // 引数は、IPアドレスを取得可能なものを渡すように。
+    // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
 
 
     // getHashHexStr()はisOwnerValid上からまとめてテストするから、省略。
     describe( "::isOwnerValid()", function(){
         var isOwnerValid = sql_parts.isOwnerValid;
         it(" finds VALID hash.", function(){
-            var stubs = createStubs4Mssql( sql_parts );
+            var stubs = createAndHookStubs4Mssql( sql_parts );
             var expected_recordset = [
-                { "owners_hash" : "ほげ" },
-                { "owners_hash" : "ほげ123" }, // ほげ1が認証されてしまうリスク？
-                { "owners_hash" : "ぴよ" }
+                { "owners_hash" : "ほげ" }
             ];
             var stub_query = stubs.Request_query;
 
             stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
 
             return shouldFulfilled(
-                isOwnerValid( TEST_DATABASE_NAME, expected_recordset[2].owners_hash )
+                isOwnerValid( TEST_DATABASE_NAME, expected_recordset[0].owners_hash )
             ).then( function(){
                 var query_str = stub_query.getCall(0).args[0];
+                var expected_str = "SELECT owners_hash, max_entrys, called_count FROM [";
+                expected_str += TEST_DATABASE_NAME + "].dbo.owners_permission WHERE [owners_hash]='";
+                expected_str += expected_recordset[0].owners_hash + "'";
                 assert( stub_query.calledOnce );
                 expect( query_str ).to.be.equal( 
-                    "SELECT owners_hash, max_entrys, called_count FROM [" + TEST_DATABASE_NAME + "].dbo.owners_permission"
+                    expected_str
                 );
             });
         });
-        it(" dont finds VALID hash: case1.", function(){
-            var stubs = createStubs4Mssql( sql_parts );
+        it(" dont finds VALID hash: WHERE command returns 0 array.", function(){
+            var stubs = createAndHookStubs4Mssql( sql_parts );
             var stub_query = stubs.Request_query;
-            var expected_recordset = [
-                { "owners_hash" : "ほげ" },
-                { "owners_hash" : "ほげ123" },
-                { "owners_hash" : "ぴよ" }
-            ];
+            var expected_recordset = [];
 
             stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
 
             return shouldRejected(
                 isOwnerValid( TEST_DATABASE_NAME, "fuga" )
-            ).catch( function( err ){
-                expect( !err, "エラー引数が渡されること" );
-            });
-        });
-        it(" dont finds VALID hash: case2.", function(){
-            var stubs = createStubs4Mssql( sql_parts );
-            var stub_query = stubs.Request_query;
-            var expected_recordset = [
-                { "owners_hash" : "ほげ" },
-                { "owners_hash" : "ほげ123" },
-                { "owners_hash" : "ぴよ" }
-            ];
-
-            stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
-
-            return shouldRejected(
-                isOwnerValid( TEST_DATABASE_NAME, "ほげ12" ) // 最後の1文字だけ欠けている。
             ).catch( function( err ){
                 expect( !err, "エラー引数が渡されること" );
             });
@@ -265,7 +294,7 @@ describe( "sql_parts.js", function(){
     describe("::getListOfBatteryLogWhereDeviceKey()", function(){
         var getListOfBatteryLogWhereDeviceKey = sql_parts.getListOfBatteryLogWhereDeviceKey;
         it("指定された期間{start, end}でのQuery発行", function(){
-            var stubs = createStubs4Mssql( sql_parts );
+            var stubs = createAndHookStubs4Mssql( sql_parts );
             var stub_query = stubs.Request_query;
             var EXPECTED_DEVICE_KEY = "ほげふがぴよ";
             var EXPECTED_PERIOD = {
@@ -302,7 +331,7 @@ describe( "sql_parts.js", function(){
             });
         });
         it("取得期間の引数は{start: null, end, null}を許容する→WHEREに入れない（将来拡張を見込み）", function(){
-            var stubs = createStubs4Mssql( sql_parts );
+            var stubs = createAndHookStubs4Mssql( sql_parts );
             var stub_query = stubs.Request_query;
             var EXPECTED_DEVICE_KEY = "ほげふがぴよ";
 
