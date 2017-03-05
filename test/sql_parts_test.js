@@ -104,61 +104,6 @@ describe( "sql_parts.js", function(){
     });
 
 
-    describe( "::isDeviceAccessRatePerHourUnder()",function(){
-        it("正常系");
-        it("異常系");
-    })
-    // 直近一時間の記録取得して、その数を数えれば良かろう。
-
-    describe( "::howManySecondsHavePassedFromLastAccess()",function(){
-        it("正常系");
-        it("異常系");
-    })
-    // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
-    // 本来は、別テーブルでIP含めて管理すべきかも？
-    // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
-
-
-    // getHashHexStr()はisOwnerValid上からまとめてテストするから、省略。
-    describe( "::isOwnerValid()", function(){
-        var isOwnerValid = sql_parts.isOwnerValid;
-        it(" finds VALID hash.", function(){
-            var stubs = createAndHookStubs4Mssql( sql_parts );
-            var expected_recordset = [
-                { "owners_hash" : "ほげ" }
-            ];
-            var stub_query = stubs.Request_query;
-
-            stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
-
-            return shouldFulfilled(
-                isOwnerValid( TEST_DATABASE_NAME, expected_recordset[0].owners_hash )
-            ).then( function(){
-                var query_str = stub_query.getCall(0).args[0];
-                var expected_str = "SELECT owners_hash, max_entrys, called_count FROM [";
-                expected_str += TEST_DATABASE_NAME + "].dbo.owners_permission WHERE [owners_hash]='";
-                expected_str += expected_recordset[0].owners_hash + "'";
-                assert( stub_query.calledOnce );
-                expect( query_str ).to.be.equal( 
-                    expected_str
-                );
-            });
-        });
-        it(" dont finds VALID hash: WHERE command returns 0 array.", function(){
-            var stubs = createAndHookStubs4Mssql( sql_parts );
-            var stub_query = stubs.Request_query;
-            var expected_recordset = [];
-
-            stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
-
-            return shouldRejected(
-                isOwnerValid( TEST_DATABASE_NAME, "fuga" )
-            ).catch( function( err ){
-                expect( !err, "エラー引数が渡されること" );
-            });
-        });
-    });
-
     describe( "::getHashHexStr()", function(){
         var getHashHexStr = sql_parts.getHashHexStr;
         it(" get Md5Hash as Hex String", function(){
@@ -175,6 +120,67 @@ describe( "sql_parts.js", function(){
             "md5の算出：その２" );
         });
     });
+
+
+    describe( "::isOwnerValid()", function(){
+        var isOwnerValid = sql_parts.isOwnerValid;
+        it(" finds VALID hash.", function(){
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+            var expected_recordset = [
+                { "owners_hash" : "ほげ", 
+                  "max_entrys"  : 127
+                }
+            ];
+            var stub_query = stubs.Request_query;
+
+            stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
+
+            return shouldFulfilled(
+                isOwnerValid( TEST_DATABASE_NAME, expected_recordset[0].owners_hash )
+            ).then( function( maxCount ){
+                var query_str = stub_query.getCall(0).args[0];
+                var expected_str = "SELECT owners_hash, max_entrys FROM [";
+                expected_str += TEST_DATABASE_NAME + "].dbo.owners_permission WHERE [owners_hash]='";
+                expected_str += expected_recordset[0].owners_hash + "'";
+
+                assert( stub_query.calledOnce );
+                expect( query_str ).to.be.equal( 
+                    expected_str
+                );
+                expect( maxCount, "記録エントリーの最大個数を返却すること" ).to.be.exist;
+            });
+        });
+        it(" dont finds VALID hash: WHERE command returns 0 array.", function(){
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stubs.Request_query;
+            var expected_recordset = [];
+
+            stub_query.onCall(0).returns( Promise.resolve( expected_recordset ) );
+
+            return shouldRejected(
+                isOwnerValid( TEST_DATABASE_NAME, "fuga" )
+            ).catch( function( err ){
+                assert( err, "エラー引数が渡されること" );
+            });
+        });
+    });
+
+
+
+    describe( "::isDeviceAccessRatePerHourUnder()",function(){
+        it("正常系");
+        it("異常系");
+    })
+    // 直近一時間の記録取得して、その数を数えれば良かろう。
+
+    describe( "::howManySecondsHavePassedFromLastAccess()",function(){
+        it("正常系");
+        it("異常系");
+    })
+    // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
+    // 本来は、別テーブルでIP含めて管理すべきかも？
+    // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
+
 
 
     describe( "::getInsertObjectFromPostData()", function(){
