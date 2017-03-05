@@ -82,12 +82,64 @@ describe( "api_sql_tiny.js", function(){
         };
     };
     var COMMON_STUB_MANAGER = new ApiCommon_StubAndHooker();
+    
+    /**
+     * @description writeJsonAsString() のスタブ生成
+     */
+    function StubResponse(){
+        this.writeJsonAsString = sinon.stub();
+    };
 
+    var setupAbnormalFormatTest = function( stubs ){
+        var EXPECTED_INPUT_DATA = { "owner_hash" : "があっても、", "invalid" : "が在ったら「不正データ」と判断されたを意味する。" };
 
+        // 【ToDo】↓ここはspyで良いのかもしれないが、、、上手く実装できなかったのでstubで。stubで悪いわけではない。
+        stubs.sql_parts.getShowObjectFromGetData.onCall(0).returns( EXPECTED_INPUT_DATA );
+
+        // beforeEach()で準備される stub に対して、動作を定義する。
+        stubs.sql_parts.createPromiseForSqlConnection.onCall(0).returns(
+            Promise.reject()
+        );
+
+        return {
+            "stub_response" : new StubResponse(),
+            "queryFromGet" : {
+                "mac_address" : "はADDは許可。ShowやDeleteは禁止。いずれにせよ、なんらかのフォーマットエラーを想定"
+            },
+            "dataFromPost" : null,
+            "EXPECTED_INPUT_DATA" : EXPECTED_INPUT_DATA
+        };
+    };
+    var verifyAbnormalFormatTest = function( stubs, param ){
+        var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
+        var stubList = stubs.sql_parts.getListOfBatteryLogWhereDeviceKey;
+        var stubWrite = param.stub_response.writeJsonAsString; // ここは引数で渡したインスタンスなので注意。
+
+        assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
+        expect( stubs.sql_parts.getShowObjectFromGetData.getCall(0).args[0] ).to.equal(param.queryFromGet);
+
+        assert( stubCreateConnection.calledOnce, "SQLへの接続生成、が一度呼ばれること" );
+        expect( stubCreateConnection.getCall(0).args[0] ).to.be.an('object');
+        expect( stubCreateConnection.getCall(0).args[1] ).to.have.ownProperty('invalid');
+
+        assert( stubs.sql_parts.isOwnerValid.notCalled, "アクセス元の認証、が呼ばれないこと" );
+        
+        assert( stubs.sql_parts.isDeviceAccessRateValied.notCalled, "アクセス頻度の認証、が呼ばれないこと" );
+
+        assert( stubList.notCalled, "SQLへのログ取得クエリー、が呼ばれないこと。" );
+
+        assert( stubs.mssql.close.notCalled, "【FixME】mssql.closeが、notConnectionでの呼ばれてしまうなぁ" );
+        assert( stubWrite.calledOnce );
+        // expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( EXPECTED_RECORDSET );
+        // httpステータス400が設定されること。
+    };
 
     describe("::api_v1_batterylog_show()", function(){
-        var api_v1_batterylog_show = api_sql.api_v1_batterylog_show;
+        /**
+         * @type beforeEachで初期化される。
+         */
         var stubs;
+        var api_v1_batterylog_show = api_sql.api_v1_batterylog_show;
 
         beforeEach(function(){ // 内部関数をフックする。
             stubs = COMMON_STUB_MANAGER.createStubs();
@@ -101,7 +153,7 @@ describe( "api_sql_tiny.js", function(){
 
         // ここからテスト。
         it("正常系", function(){
-            var stub_response =  { "writeJsonAsString" : sinon.stub() };
+            var stub_response =  new StubResponse();
             var queryFromGet = { "device_key" : "ほげふがぴよ" };
             var dataFromPost = null;
             var EXPECTED_INPUT_DATA = { 
@@ -168,10 +220,22 @@ describe( "api_sql_tiny.js", function(){
                 assert( stubs.mssql.close.calledOnce );
                 assert( stubWrite.calledOnce );
                 expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( EXPECTED_RECORDSET );
+
+                // 【FixMe】200をwriteJsonで返している検証が未記述。
             });
         });
 
         // ◆異常系は、まとめてテスト（関数定義して、それをit()に渡す）べきか？
+        it("異常系：要求パラメータのフォーマットGなら、400を返す", function(){
+            var param = setupAbnormalFormatTest( stubs );
+            
+            return shouldFulfilled(
+                api_v1_batterylog_show( param.stub_response, param.queryFromGet, param.dataFromPost )
+            ).then(function(){
+                verifyAbnormalFormatTest( stubs, param );
+            });
+
+        } );
         it("異常系：認証NGなら、401を返す");
         // メモ⇒レートリミットはShowとaddで変更する。
         it("異常系：レートリミット違反なら（アクセス時間間隔）、503を返す");
