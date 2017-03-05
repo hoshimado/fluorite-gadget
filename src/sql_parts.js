@@ -119,18 +119,29 @@ exports.isOwnerValid = isOwnerValid;
 
 
 
-var isDeviceAccessRatePerHourUnder = function( rate_limit ){
-	return true; // 【ToDo】未実装
+var isDeviceAccessRateValied = function( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour ){
+	// 【ToDo】未実装
+	return Promise.resolve();	
+
+	// データベースアクセスを伴うのでPromise。
+	// なお、「アクセス頻度」も「最終アクセス」も同じテーブルデータを
+	// 参照するので、SQLへのクエリーは一括して行う。
+
+	// エントリ総数の妥当性チェック。
+	// SELECT owners_hash, COUNT(*) FROM [dbo].[batterylogs] WHERE owners_hash='9050dc4f303icklamzlnal' GROUP BY [owners_hash]
+	// ※905～はテスト用のキー。
+
+	// var isDeviceAccessRatePerHourUnder = function( rate_limit ){}
+
+	// var howManySecondsHavePassedFromLastAccess = function(){}
+	// 【ToDo】未実装。これは、ログデータベースとは別にアクセス管理（IPアドレス）すべきだが、、、
+	//         そこまで実装する暇あるか、今回？
+	//         new Date() 同志の引き算で、mili秒が返る筈。。。
 };
-exports.isDeviceAccessRatePerHourUnder = isDeviceAccessRatePerHourUnder;
+exports.isDeviceAccessRateValied = isDeviceAccessRateValied;
 
 
-var howManySecondsHavePassedFromLastAccess = function(){
-	return 1; // 【ToDo】未実装。これは、ログデータベースとは別にアクセス管理（IPアドレス）すべきだが、、、
-			  //         そこまで実装する暇あるか、今回？
-			  //         new Date() 同志の引き算で、mili秒が返る筈。。。
-};
-exports.howManySecondsHavePassedFromLastAccess = howManySecondsHavePassedFromLastAccess;
+
 
 
 /**

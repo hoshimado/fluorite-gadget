@@ -167,20 +167,19 @@ describe( "sql_parts.js", function(){
 
 
 
-    describe( "::isDeviceAccessRatePerHourUnder()",function(){
+    describe( "::isDeviceAccessRateValid()",function(){
+        // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+        // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+
+        // 直近一時間の記録取得して、その数を数えれば良かろう。
+
+        // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
+        // 本来は、別テーブルでIP含めて管理すべきかも？
+        // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
+
         it("正常系");
         it("異常系");
     })
-    // 直近一時間の記録取得して、その数を数えれば良かろう。
-
-    describe( "::howManySecondsHavePassedFromLastAccess()",function(){
-        it("正常系");
-        it("異常系");
-    })
-    // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
-    // 本来は、別テーブルでIP含めて管理すべきかも？
-    // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
-
 
 
     describe( "::getInsertObjectFromPostData()", function(){

@@ -100,7 +100,7 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 			var owner_hash = inputData.owner_hash;
 			var is_onwer_valid_promise = isOwnerValid( config.database, owner_hash );
 			is_onwer_valid_promise.then(function(){
-				resolve( inputData ); // ⇒次のthen()が呼ばれる。
+				resolve( { "inputData" : inputData, "maxCount" : maxCount } ); // ⇒次のthen()が呼ばれる。
 			}).catch(function(err){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
@@ -113,6 +113,14 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 		// > §4.3.2. thenでもrejectする
 		// > このとき、returnしたものがpromiseオブジェクトである場合、そのpromiseオブジェクトの状態によって、
 		// > 次の then に登録されたonFulfilledとonRejectedのうち、どちらが呼ばれるかを決めることができます。
+	}).then(function( result ){
+		// 接続元の接続レート（頻度）の許可／不許可を検証
+		var inputData = result.inputData;
+		var maxCount  = result.maxCount;
+
+		// 【FixME】レートの妥当性など判断。
+		// promise = isDeviceAccessRateValied( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour )
+		return Promise.resolve( inputData );
 	}).then(function( inputData ){
 		return new Promise(function(resolve,reject){
 			var mssql = factoryImpl.mssql.getInstance();
@@ -152,9 +160,13 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
  * バッテリーログをSQLから、指定されたデバイス（のハッシュ値）のものを取得する。
  */
 exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost ){
+	// 接続要求のデータフォーマットを検証＆SQL接続を生成
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	var getShowObjectFromGetData = factoryImpl.sql_parts.getInstance( "getShowObjectFromGetData" );
 	var outJsonData = {};
+	// ※データフォーマット違反の場合、Promise.reject()するのだが、そうすると
+	//  フォーマットOKでSQL接続のPromiseの生成とを、if文でここに記述する必要がある。
+	//  この分岐は共通的なので、createPromise～()に押し込める設計、とした。
 	var promise = createPromiseForSqlConnection( 
 		outJsonData, 
 		getShowObjectFromGetData( queryFromGet ), 
@@ -162,13 +174,14 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 	);
 
 	return promise.then(function( inputData ){
+		// 接続元の認証Y/Nを検証。
 		return new Promise(function(resolve,reject){
 			var config = factoryImpl.CONFIG_SQL.getInstance();
 			var isOwnerValid = factoryImpl.sql_parts.getInstance( "isOwnerValid" );
 			var owner_hash = inputData.owner_hash;
 			var is_onwer_valid_promise = isOwnerValid( config.database, owner_hash );
-			is_onwer_valid_promise.then(function(){
-				resolve( inputData ); // ⇒次のthen()が呼ばれる。
+			is_onwer_valid_promise.then(function( maxCount ){
+				resolve( { "inputData" : inputData, "maxCount" : maxCount } ); // ⇒次のthen()が呼ばれる。
 			}).catch(function(err){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
@@ -176,7 +189,16 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 				reject(); // ⇒次のcatch()が呼ばれる。
 			});
 		});
+	}).then(function( result ){
+		// 接続元の接続レート（頻度）の許可／不許可を検証
+		var inputData = result.inputData;
+		var maxCount  = result.maxCount;
+
+		// 【FixME】レートの妥当性など判断。
+		// promise = isDeviceAccessRateValied()
+		return Promise.resolve( inputData );
 	}).then(function( inputData ){
+		// 対象のログデータをSQLへ要求
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var getListOfBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "getListOfBatteryLogWhereDeviceKey" );
 		return getListOfBatteryLogWhereDeviceKey(

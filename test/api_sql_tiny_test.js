@@ -45,6 +45,7 @@ describe( "api_sql_tiny.js", function(){
                 "sql_parts" : {
                     "createPromiseForSqlConnection" : sinon.stub(),
                     "isOwnerValid" : sinon.stub(),
+                    "isDeviceAccessRateValied" : sinon.stub(),
                     "getShowObjectFromGetData" : sinon.stub(),
                     "getListOfBatteryLogWhereDeviceKey" : sinon.stub()
                 }
@@ -103,27 +104,32 @@ describe( "api_sql_tiny.js", function(){
             var stub_response =  { "writeJsonAsString" : sinon.stub() };
             var queryFromGet = { "device_key" : "ほげふがぴよ" };
             var dataFromPost = null;
-            var expectedInputData = { 
+            var EXPECTED_INPUT_DATA = { 
                 "owner_hash" : queryFromGet.device_key,
                 "date_start" : "2017-02-01", // queryGetに無い場合でも、、デフォルトを生成する。
                 "date_end"   : "2017-02-14"  // 上同。
             };
-            var expectedRecordset = [
+            var EXPECTED_RECORDSET = [
                 {"created_at":"2017-02-08T00:47:25.000Z","battery":91},
                 {"created_at":"2017-02-11T12:36:01.000Z","battery":77}
             ];
+            var EXPECTED_MAX_COUNT = 255;
+
+            // 【ToDo】↓ここはspyで良いのかもしれないが、、、上手く実装できなかったのでstubで。stubで悪いわけではない。
+            stubs.sql_parts.getShowObjectFromGetData.onCall(0).returns( EXPECTED_INPUT_DATA );
 
             // beforeEach()で準備される stub に対して、動作を定義する。
             stubs.sql_parts.createPromiseForSqlConnection.onCall(0).returns(
-                Promise.resolve( expectedInputData )
+                Promise.resolve( EXPECTED_INPUT_DATA )
             );
             stubs.sql_parts.isOwnerValid.onCall(0).returns(
+                Promise.resolve( EXPECTED_MAX_COUNT )
+            );
+            stubs.sql_parts.isDeviceAccessRateValied.onCall(0).returns(
                 Promise.resolve()
             );
-            stubs.sql_parts.getShowObjectFromGetData.onCall(0).returns( expectedInputData );
-            // 【ToDo】↑ここはspyで良いのかもしれないが、、、上手く実装できなかったのでstubで。stubで悪いわけではない。
             stubs.sql_parts.getListOfBatteryLogWhereDeviceKey.onCall(0).returns(
-                Promise.resolve( expectedRecordset )
+                Promise.resolve( EXPECTED_RECORDSET )
             );
 
             return shouldFulfilled(
@@ -133,28 +139,35 @@ describe( "api_sql_tiny.js", function(){
                 var stubList = stubs.sql_parts.getListOfBatteryLogWhereDeviceKey;
                 var stubWrite = stub_response.writeJsonAsString;
 
-                assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce );
+                assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
                 expect( stubs.sql_parts.getShowObjectFromGetData.getCall(0).args[0] ).to.equal(queryFromGet);
 
-                assert( stubCreateConnection.calledOnce );
+                assert( stubCreateConnection.calledOnce, "SQLへの接続生成、が一度呼ばれること" );
                 expect( stubCreateConnection.getCall(0).args[0] ).to.be.an('object');
                 expect( stubCreateConnection.getCall(0).args[1] ).to.have.ownProperty('owner_hash');
 
-                assert( stubs.sql_parts.isOwnerValid.calledOnce );
+                assert( stubs.sql_parts.isOwnerValid.calledOnce, "アクセス元の認証、が一度呼ばれること" );
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
                 
-                assert( stubList.calledOnce );
+                assert( stubs.sql_parts.isDeviceAccessRateValied.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
+                expect( stubs.sql_parts.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubs.sql_parts.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
+                expect( stubs.sql_parts.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
+                // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+                // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+
+                assert( stubList.calledOnce, "SQLへのログ取得クエリー。getListOfBatteryLogWhereDeviceKey()が1度呼ばれること。" );
                 expect( stubList.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
                 expect( stubList.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
                 expect( stubList.getCall(0).args[2] ).to.deep.equal({
-                    "start" : expectedInputData.date_start,
-                    "end"   : expectedInputData.date_end 
+                    "start" : EXPECTED_INPUT_DATA.date_start,
+                    "end"   : EXPECTED_INPUT_DATA.date_end 
                 });
 
                 assert( stubs.mssql.close.calledOnce );
                 assert( stubWrite.calledOnce );
-                expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( expectedRecordset );
+                expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( EXPECTED_RECORDSET );
             });
         });
 
