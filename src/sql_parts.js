@@ -94,7 +94,7 @@ var isOwnerValid = function( databaseName, ownerHash ){
 	return new Promise(function(resolve,reject){
 		var mssql = factoryImpl.mssql.getInstance();
 		var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
-		var query_str = "SELECT owners_hash, max_entrys, called_count";
+		var query_str = "SELECT owners_hash, max_entrys";
 		query_str += " FROM [" + databaseName + "].dbo.owners_permission";
 		query_str += " WHERE [owners_hash]='" + ownerHash + "'";
 
@@ -102,7 +102,7 @@ var isOwnerValid = function( databaseName, ownerHash ){
 			var n = recordset.length;
 
 			if( 0 < n ){
-				resolve();
+				resolve( recordset[0].max_entrys );
 			}else{
 				reject({
 					"isDevicePermission" : false
@@ -128,7 +128,7 @@ exports.isDeviceAccessRatePerHourUnder = isDeviceAccessRatePerHourUnder;
 var howManySecondsHavePassedFromLastAccess = function(){
 	return 1; // 【ToDo】未実装。これは、ログデータベースとは別にアクセス管理（IPアドレス）すべきだが、、、
 			  //         そこまで実装する暇あるか、今回？
-			  //         new Date() 同志の引き算で、mili秒が変える筈。。。
+			  //         new Date() 同志の引き算で、mili秒が返る筈。。。
 };
 exports.howManySecondsHavePassedFromLastAccess = howManySecondsHavePassedFromLastAccess;
 
@@ -218,6 +218,9 @@ var getListOfBatteryLogWhereDeviceKey = function( databaseName, deviceKey, perio
 
 	var query_str = "SELECT created_at, battery FROM [" + databaseName + "].dbo.batterylogs";
 	query_str += " WHERE [owners_hash]='" + deviceKey + "'"; // 固定長文字列でも、後ろの空白は無視してくれるようだ。
+	// http://sql55.com/column/string-comparison.php
+	// > SQL Server では文字列を比較する際、比較対象の 2 つの文字列の長さが違った場合、
+	// > 短い方の文字列の後ろにスペースを足して、長さの長い方にあわせてから比較します。
 	if( period && period.start ){
 		query_str += " AND [created_at] >= '";
 		query_str += period.start;
