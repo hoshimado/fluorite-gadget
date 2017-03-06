@@ -72,19 +72,6 @@ describe( "sql_parts.js", function(){
                 expect( result ).to.equal( inputDataObj );
             });
         });
-        it("異常系：その前の認証がエラー", function(){
-            var outJsonData = {};
-            var inputDataObj = { "invalid" : "something is wrong." };
-            var sqlConfig = {};
-            var stubs = createAndHookStubs4Mssql( sql_parts );
-            
-            return shouldRejected(
-                sql_parts.createPromiseForSqlConnection( outJsonData, inputDataObj, sqlConfig )
-            ).catch(function(){
-                assert( stubs.connect.notCalled );
-                expect( outJsonData.result ).to.not.be.exist;
-            });
-        });
         it("異常系：SQL接続がエラー", function(){
             var outJsonData = {};
             var inputDataObj = {};

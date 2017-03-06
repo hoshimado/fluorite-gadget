@@ -102,7 +102,6 @@ describe( "api_sql_tiny.js", function(){
         );
 
         return {
-            "stub_response" : new StubResponse(),
             "queryFromGet" : {
                 "mac_address" : "はADDは許可。ShowやDeleteは禁止。いずれにせよ、なんらかのフォーマットエラーを想定"
             },
@@ -110,17 +109,14 @@ describe( "api_sql_tiny.js", function(){
             "EXPECTED_INPUT_DATA" : EXPECTED_INPUT_DATA
         };
     };
-    var verifyAbnormalFormatTest = function( stubs, param ){
+    var verifyAbnormalFormatTest = function( result, stubs, param ){
         var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
         var stubList = stubs.sql_parts.getListOfBatteryLogWhereDeviceKey;
-        var stubWrite = param.stub_response.writeJsonAsString; // ここは引数で渡したインスタンスなので注意。
 
         assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
         expect( stubs.sql_parts.getShowObjectFromGetData.getCall(0).args[0] ).to.equal(param.queryFromGet);
 
-        assert( stubCreateConnection.calledOnce, "SQLへの接続生成、が一度呼ばれること" );
-        expect( stubCreateConnection.getCall(0).args[0] ).to.be.an('object');
-        expect( stubCreateConnection.getCall(0).args[1] ).to.have.ownProperty('invalid');
+        assert( stubCreateConnection.notCalled, "SQLへの接続生成、が呼ばれないこと" );
 
         assert( stubs.sql_parts.isOwnerValid.notCalled, "アクセス元の認証、が呼ばれないこと" );
         
@@ -129,7 +125,7 @@ describe( "api_sql_tiny.js", function(){
         assert( stubList.notCalled, "SQLへのログ取得クエリー、が呼ばれないこと。" );
 
         assert( stubs.mssql.close.notCalled, "【FixME】mssql.closeが、notConnectionでの呼ばれてしまうなぁ" );
-        assert( stubWrite.calledOnce );
+        expect( result ).to.be.exist;
         // expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( EXPECTED_RECORDSET );
         // httpステータス400が設定されること。
     };
@@ -153,7 +149,6 @@ describe( "api_sql_tiny.js", function(){
 
         // ここからテスト。
         it("正常系", function(){
-            var stub_response =  new StubResponse();
             var queryFromGet = { "device_key" : "ほげふがぴよ" };
             var dataFromPost = null;
             var EXPECTED_INPUT_DATA = { 
@@ -185,11 +180,10 @@ describe( "api_sql_tiny.js", function(){
             );
 
             return shouldFulfilled(
-                api_v1_batterylog_show( stub_response, queryFromGet, dataFromPost )
-            ).then(function(){
+                api_v1_batterylog_show( queryFromGet, dataFromPost )
+            ).then(function( result ){
                 var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
                 var stubList = stubs.sql_parts.getListOfBatteryLogWhereDeviceKey;
-                var stubWrite = stub_response.writeJsonAsString;
 
                 assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
                 expect( stubs.sql_parts.getShowObjectFromGetData.getCall(0).args[0] ).to.equal(queryFromGet);
@@ -218,8 +212,8 @@ describe( "api_sql_tiny.js", function(){
                 });
 
                 assert( stubs.mssql.close.calledOnce );
-                assert( stubWrite.calledOnce );
-                expect( stubWrite.getCall(0).args[0].table ).to.deep.equal( EXPECTED_RECORDSET );
+                expect( result ).to.be.exist;
+                expect( result.jsonData.table ).to.deep.equal( EXPECTED_RECORDSET );
 
                 // 【FixMe】200をwriteJsonで返している検証が未記述。
             });
@@ -230,9 +224,9 @@ describe( "api_sql_tiny.js", function(){
             var param = setupAbnormalFormatTest( stubs );
             
             return shouldFulfilled(
-                api_v1_batterylog_show( param.stub_response, param.queryFromGet, param.dataFromPost )
-            ).then(function(){
-                verifyAbnormalFormatTest( stubs, param );
+                api_v1_batterylog_show( param.queryFromGet, param.dataFromPost )
+            ).then(function( result ){
+                verifyAbnormalFormatTest( result, stubs, param );
             });
 
         } );

@@ -159,7 +159,7 @@ describe( "responser_ex.js::ResponseExtendJson()", function(){
             assert( fakeEnd.calledOnce, "end()を呼ぶ");
         });
 
-        it(" calls writeHead() with 500 when [isOk] = false,",function(){
+        it(" calls writeHead() with 500",function(){
             var fakeRes = new MOCK_HTTP_RESPONSE();
             var fakeWriteHead = sinon.spy( fakeRes, "writeHead" );
             var fakeWrite = sinon.spy( fakeRes, "write" );
@@ -167,7 +167,7 @@ describe( "responser_ex.js::ResponseExtendJson()", function(){
             var responser = new responser_wrapper.ResponseExtendJson( fakeRes );
             var expectedData = { a : "hoge", b: "fuga" };
 
-            responser.writeJsonAsString( expectedData, false );
+            responser.writeJsonAsString( expectedData, 500 );
 
             assert( fakeWriteHead.calledOnce, "writeHead()を呼ぶ");
             expect( fakeWriteHead.getCall(0).args[0]).to.equal( 500 ); // 500=Error

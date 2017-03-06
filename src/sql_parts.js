@@ -29,29 +29,20 @@ exports.factoryImpl = factoryImpl;
  * @param{Object} sqlConfig     SQL接続情報。inputDataObjが有効（invalidメンバ無し）なら、resolve(inputDataObj)する。
  */
 var createPromiseForSqlConnection = function( outJsonData, inputDataObj, sqlConfig ){
-	var promise;
-	var invalid = inputDataObj.invalid;
-	if( invalid && invalid.length > 0 ){
-		// 前工程で、なんらかのエラーがあった。
-		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
-		promise = Promise.reject(); // これで、then()を全てすっ飛ばして catch()へ逝くはず。
-	}else{
-		promise = new Promise(function(resolve,reject){
-			var mssql = factoryImpl.mssql.getInstance();
-			var connect = mssql.connect( sqlConfig );
-			connect.then(function(){
-				outJsonData["result"] = "sql connection is OK!";
-				// outJsonData["information"] = "databese name is [" + CONFIG_SQL.database + "]";
+	return new Promise(function(resolve,reject){
+		var mssql = factoryImpl.mssql.getInstance();
+		var connect = mssql.connect( sqlConfig );
+		connect.then(function(){
+			outJsonData["result"] = "sql connection is OK!";
+			// outJsonData["information"] = "databese name is [" + CONFIG_SQL.database + "]";
 
-				resolve( inputDataObj );
-			}).catch(function( err ){
-				outJsonData[ "errer_on_connection" ] = err;
-				reject();
-			});
+			resolve( inputDataObj );
+		}).catch(function( err ){
+			outJsonData[ "errer_on_connection" ] = err;
+			reject();
 		});
-	}
-	return promise;
-}
+	});
+};
 exports.createPromiseForSqlConnection = createPromiseForSqlConnection;
 
 
@@ -97,10 +88,8 @@ var isOwnerValid = function( databaseName, ownerHash ){
 		var query_str = "SELECT owners_hash, max_entrys";
 		query_str += " FROM [" + databaseName + "].dbo.owners_permission";
 		query_str += " WHERE [owners_hash]='" + ownerHash + "'";
-
 		sql_request.query( query_str ).then(function(recordset){
 			var n = recordset.length;
-
 			if( 0 < n ){
 				resolve( recordset[0].max_entrys );
 			}else{
