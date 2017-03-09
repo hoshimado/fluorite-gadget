@@ -166,6 +166,22 @@ exports.getInsertObjectFromPostData = getInsertObjectFromPostData;
 
 
 
+var addBatteryLog2Database = function( databaseName, deviceKey, batteryValue ){
+	var mssql = factoryImpl.mssql.getInstance();
+	var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
+	var now_date = new Date();
+	var date_str = now_date.toFormat("YYYY-MM-DD HH24:MI:SS.000"); // data-utilsモジュールでの拡張を利用。
+	var query_str = "INSERT INTO dbo.batterylogs(created_at, battery, owners_hash ) VALUES('" + date_str + "', " + batteryValue + ", '" + deviceKey + "')";
+	return sql_request.query( query_str ).then(function(){
+		var insertedData = {
+			"battery_value" : batteryValue,
+			"owner_hash" : deviceKey
+		};
+		return Promise.resolve( insertedData );
+	});
+};
+exports.addBatteryLog2Database = addBatteryLog2Database;
+
 
 
 /**
@@ -189,6 +205,7 @@ var getShowObjectFromGetData = function( getData ){
 		valid_data[ "owner_hash" ] = getData["device_key"];
 		valid_data[ "date_start" ] = getData.date_start ? getData.date_start : date_start.toFormat("YYYY-MM-DD"); // data-utilsモジュールでの拡張を利用。
 		valid_data[ "date_end"   ] = getData.date_end ? getData.date_end : date_end.toFormat("YYYY-MM-DD");
+		// 【FixMe】終端は「その日の末日」か「翌日」にすべきかなぁ。
 
 		if( !valid_data.date_start.match(/\d{4,4}-\d{2,2}-\d{2,2}/) ){
 			valid_data[ "invalid" ] = "format of date is wrong.";
@@ -222,14 +239,14 @@ var getListOfBatteryLogWhereDeviceKey = function( databaseName, deviceKey, perio
 	// > SQL Server では文字列を比較する際、比較対象の 2 つの文字列の長さが違った場合、
 	// > 短い方の文字列の後ろにスペースを足して、長さの長い方にあわせてから比較します。
 	if( period && period.start ){
-		query_str += " AND [created_at] >= '";
+		query_str += " AND [created_at] > '";
 		query_str += period.start;
 		query_str += "'";
 	}
 	if( period && period.end ){
-		query_str += " AND [created_at] < '";
+		query_str += " AND [created_at] <= '";
 		query_str += period.end;
-		query_str += "'";
+		query_str += "T23:59'"; // その日の最後、として指定する。
 	}
 	return sql_request.query( query_str );
 };

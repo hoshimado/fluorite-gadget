@@ -201,6 +201,26 @@ describe( "sql_parts.js", function(){
             expect( result.invalid ).to.be.exist;
         });
     });
+    describe( "::addBatteryLog2Database()", function(){
+        it("正常系");
+        /*
+        var now_date = new Date(); ⇒これ、うまいこと±で評価できないかなぁ？
+        var date_str = now_date.toFormat("YYYY-MM-DD HH24:MI:SS.000"); // data-utilsモジュールでの拡張を利用。
+        var battery_str = inputData.battery_value;
+        var query_str = "INSERT INTO dbo.batterylogs(created_at, battery, owners_hash ) VALUES('" + date_str + "', " + battery_str + ", '" + owner_hash + "')";
+        var sql_query = sql_request.query( query_str );
+
+        var past_date = new Date();
+        past_date.setTime( now_date.getTime() - 7 * 86400000 ); //日数 * 1日のミリ秒数;;
+        expect( result.invalid ).to.not.be.exist;
+        expect( result.owner_hash ).to.equal( dataGet.device_key );
+        expect( result.date_start )
+        .to.equal(past_date.toFormat("YYYY-MM-DD"), "無指定なら、「7日前」として扱う。" );
+        expect( result.date_end ).to.equal( now_date.toFormat("YYYY-MM-DD"), "無指定なら、「今日」として扱う。" );
+        */
+
+        it("異常系：SQL応答がエラー");
+    });
 
 
 
@@ -309,12 +329,12 @@ describe( "sql_parts.js", function(){
                 EXPECTED_QUERY_STR += TEST_DATABASE_NAME;
                 EXPECTED_QUERY_STR += "].dbo.batterylogs WHERE [owners_hash]='";
                 EXPECTED_QUERY_STR += EXPECTED_DEVICE_KEY;
-                EXPECTED_QUERY_STR += "' AND [created_at] >= '";
+                EXPECTED_QUERY_STR += "' AND [created_at] > '";
                 EXPECTED_QUERY_STR += EXPECTED_PERIOD.start;
-                EXPECTED_QUERY_STR += "' AND [created_at] < '";
+                EXPECTED_QUERY_STR += "' AND [created_at] <= '";
                 EXPECTED_QUERY_STR += EXPECTED_PERIOD.end;
-                EXPECTED_QUERY_STR += "'";
-                // SELECT created_at, battery FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー' AND [created_at] >= '2017-02-10' AND [created_at] < '2017-02-14';
+                EXPECTED_QUERY_STR += "T23:59'"; // その日の最後、として指定する。
+                // SELECT created_at, battery FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー' AND [created_at] > '2017-02-10' AND [created_at] <= '2017-02-14T23:59';
 
                 assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );
                 expect( stub_query.getCall(0).args[0] ).to.equal(
