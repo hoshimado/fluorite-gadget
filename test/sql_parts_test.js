@@ -333,7 +333,7 @@ describe( "sql_parts.js", function(){
                 EXPECTED_QUERY_STR += EXPECTED_PERIOD.start;
                 EXPECTED_QUERY_STR += "' AND [created_at] <= '";
                 EXPECTED_QUERY_STR += EXPECTED_PERIOD.end;
-                EXPECTED_QUERY_STR += "T23:59'"; // その日の最後、として指定する。
+                EXPECTED_QUERY_STR += " 23:59'"; // その日の最後、として指定する。
                 // SELECT created_at, battery FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー' AND [created_at] > '2017-02-10' AND [created_at] <= '2017-02-14T23:59';
 
                 assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );

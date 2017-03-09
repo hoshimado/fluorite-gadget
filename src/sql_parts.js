@@ -246,8 +246,9 @@ var getListOfBatteryLogWhereDeviceKey = function( databaseName, deviceKey, perio
 	if( period && period.end ){
 		query_str += " AND [created_at] <= '";
 		query_str += period.end;
-		query_str += "T23:59'"; // その日の最後、として指定する。
+		query_str += " 23:59'"; // その日の最後、として指定する。
 	}
+console.log( query_str );
 	return sql_request.query( query_str );
 };
 exports.getListOfBatteryLogWhereDeviceKey = getListOfBatteryLogWhereDeviceKey;
