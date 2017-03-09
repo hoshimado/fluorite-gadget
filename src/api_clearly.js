@@ -133,7 +133,7 @@ const _getScrapingQuery = ( queryGetMethod )=>{
  */ 
 const summarylistEx = function( 
 	_scrapingModule, _clearlyFunc, 
-	responseEx, queryFromGet, dataFromPost )
+	queryFromGet, dataFromPost )
 {
 	const filter  = _getFilterObjectFromGetQuery( queryFromGet );
 	const scrapingQuery = _getScrapingQuery( queryFromGet );
@@ -144,15 +144,23 @@ const summarylistEx = function(
 		}
 	);
 
-	// 上位で直接は使わないが、UTのためにPromise結果を返しておく。
-	return promise.then( function( result ){
-		var summary_list = result.clearlyList;
+	return new Promise(function(resolve,reject){
+		promise.then( function( result ){
+			var summary_list = result.clearlyList;
 
-		responseEx.writeJsonAsString( summary_list );
-		debug.console_output( "[http] response is done." );
-	}).catch( function( err ){
-		responseEx.writeJsonAsString( err ); //, false
-		debug.console_output( "[http:ERROR]: \n" + JSON.stringify(err) );
+			debug.console_output( "[http] response is done." );
+			resolve({
+				"jsonData" : summary_list,
+				"status" : 200 // OK Status-Code
+			});
+		}).catch( function( err ){
+			resolve({
+				"jsonData" : err,
+				"status" : 500 // Internal Error 【FixMe】適切なコード設定
+			});
+			debug.console_output( "[http:ERROR]: \n" + JSON.stringify(err) );
+		});
+
 	});
 };
 
@@ -160,12 +168,13 @@ const summarylistEx = function(
 
 
 
-exports.api_v1_summarylist = function( response, queryFromGet, dataFromPost ){
-	summarylistEx( 
+exports.api_v1_summarylist = function( queryFromGet, dataFromPost ){
+	return summarylistEx( 
 		/* 上の段は、ストラテージパターン。UT容易性を目的に。 */
 		scraping, clearlyFuncBySelectors, 
 		/* 下の段の引数が本命 */
-		response, queryFromGet, dataFromPost );
+		queryFromGet, dataFromPost 
+	);
 }
 
 // 以下は、UT目的にexportsする。

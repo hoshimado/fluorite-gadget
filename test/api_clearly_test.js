@@ -365,15 +365,13 @@ describe( "api_clearly.js", function(){
 			}};
 			const spyScraping = sinon.spy( fakeScraping, "searchClearly" );
 			const fakeClearly = sinon.stub(); 
-			const fakeRes = new responser_wrapper.ResponseExtendJson();
-			const stubWriteJson = sinon.stub( fakeRes, "writeJsonAsString" );
 
 
 			const promise = api_clearly.summarylistEx( 
 				fakeScraping, fakeClearly, 
-				fakeRes, QUERY_FROM_GET, DATA_FROM_POST 
+				QUERY_FROM_GET, DATA_FROM_POST 
 			);
-			return promise.then( function(){ // Promise() 利用の場合、done()は使わず、then()をreturnする。
+			return promise.then( function( result ){ // Promise() 利用の場合、done()は使わず、then()をreturnする。
 				assert( spyScraping.calledOnce, "scraping関数が1度だけ呼ばれた" );
 
 				expect( spyScraping.getCall(0).args[0], "scraping関数へURLが正しく渡された")
@@ -406,9 +404,9 @@ describe( "api_clearly.js", function(){
 					});
 				}());
 
-				assert( stubWriteJson.calledOnce, "writeJson()が一度だけ呼ばれること" );
-				expect( stubWriteJson.getCall(0).args[0], "Json()の引数１が、Clearyly()#clearlyList であること。" )
+				expect( result.jsonData, "resolveのjsonDataが、Clearyly()#clearlyList であること。" )
 				.to.deep.equal( EXPECTED_LIST );
+				expect( result.status ).to.equal( 200 );
 			});
 		});
 	});

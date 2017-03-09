@@ -21,26 +21,22 @@ exports.ResponseExtendJson = ResponseExtendJson;
 /**
  * @description レスポンスでJSON応答する。writeHead(), write(), end()まで実施。
  * @param{object} result 応答するJSONオブジェクト。この関数の中でJSON.stringify() して返す。
- * @param{boolean} isOk  省略可能（⇒200[正常])。Httpのエラー応答したいときはfalseを指定。 
+ * @param{number} httpStatus  省略可能（⇒200[正常])。Httpステータスを指定する。 
  */
-ResponseExtendJson.prototype.writeJsonAsString = function( result, isOk ){
+ResponseExtendJson.prototype.writeJsonAsString = function( result, httpStatus ){
 	var data = JSON.stringify( result );
-	var status;
-	if( typeof isOk == "undefined" ){
-		isOk = true;
-	}
-	status = isOk ? 200 : 500;
 
+	httpStatus = httpStatus ? httpStatus : 200; // 省略されてたら「200（正常）」として扱う。
 	if( this.itsCallBackName ){
 		// http://tsujimotter.info/2013/01/03/jsonp/
 		data = this.itsCallBackName + "(" + data + ")";
-		this.writeHead( status, { 
+		this.writeHead( httpStatus, { 
 			"Pragma" : "no-cacha", 
 			"Cache-Control" : "no-cache",
 			"Content-Type" : "application/javascript; charset=utf-8"
 		});
 	}else{
-		this.writeHead( status, {
+		this.writeHead( httpStatus, {
 			"Access-Control-Allow-Origin" : "*", // JSONはクロスドメインがデフォルトNG。
 			"Pragma" : "no-cacha", 
 			"Cache-Control" : "no-cache",

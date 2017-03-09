@@ -105,7 +105,19 @@ const route = function( request, actionHandler ) {
 		debug.console_output( "API name is [" + api_name + "].");
 
 		if( actionHandler.hasOwnProperty( api_name ) ){
-			return actionHandler[ api_name ];
+			// 本来は、server.js側に手を入れるべきかもだが、とりあえずここでラッパーする。
+			// 必要なら後日にもう一回リファクタリングする。
+			return function( responseEx, queryGetMethod, dataPostMethod ){
+				var api = actionHandler[ api_name ];
+				return api( queryGetMethod, dataPostMethod ).then(function(result){
+					var json_data = result.jsonData;
+					var http_status = result.status;
+					// 【ToDo】↑ここのオブジェクト、new ほげほげ() で、メンバ固定させる手、の方がよいかも？
+					//        resolve( new ResponseResult( jsonData, status ) );とか。
+
+					responseEx.writeJsonAsString( json_data, http_status );
+				});
+			};
 		}else{
 			return _StaticResponse["404"];
 		}

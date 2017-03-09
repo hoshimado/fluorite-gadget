@@ -29,29 +29,20 @@ exports.factoryImpl = factoryImpl;
  * @param{Object} sqlConfig     SQL接続情報。inputDataObjが有効（invalidメンバ無し）なら、resolve(inputDataObj)する。
  */
 var createPromiseForSqlConnection = function( outJsonData, inputDataObj, sqlConfig ){
-	var promise;
-	var invalid = inputDataObj.invalid;
-	if( invalid && invalid.length > 0 ){
-		// 前工程で、なんらかのエラーがあった。
-		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
-		promise = Promise.reject(); // これで、then()を全てすっ飛ばして catch()へ逝くはず。
-	}else{
-		promise = new Promise(function(resolve,reject){
-			var mssql = factoryImpl.mssql.getInstance();
-			var connect = mssql.connect( sqlConfig );
-			connect.then(function(){
-				outJsonData["result"] = "sql connection is OK!";
-				// outJsonData["information"] = "databese name is [" + CONFIG_SQL.database + "]";
+	return new Promise(function(resolve,reject){
+		var mssql = factoryImpl.mssql.getInstance();
+		var connect = mssql.connect( sqlConfig );
+		connect.then(function(){
+			outJsonData["result"] = "sql connection is OK!";
+			// outJsonData["information"] = "databese name is [" + CONFIG_SQL.database + "]";
 
-				resolve( inputDataObj );
-			}).catch(function( err ){
-				outJsonData[ "errer_on_connection" ] = err;
-				reject();
-			});
+			resolve( inputDataObj );
+		}).catch(function( err ){
+			outJsonData[ "errer_on_connection" ] = err;
+			reject();
 		});
-	}
-	return promise;
-}
+	});
+};
 exports.createPromiseForSqlConnection = createPromiseForSqlConnection;
 
 
@@ -97,10 +88,8 @@ var isOwnerValid = function( databaseName, ownerHash ){
 		var query_str = "SELECT owners_hash, max_entrys";
 		query_str += " FROM [" + databaseName + "].dbo.owners_permission";
 		query_str += " WHERE [owners_hash]='" + ownerHash + "'";
-
 		sql_request.query( query_str ).then(function(recordset){
 			var n = recordset.length;
-
 			if( 0 < n ){
 				resolve( recordset[0].max_entrys );
 			}else{
@@ -119,18 +108,29 @@ exports.isOwnerValid = isOwnerValid;
 
 
 
-var isDeviceAccessRatePerHourUnder = function( rate_limit ){
-	return true; // 【ToDo】未実装
+var isDeviceAccessRateValied = function( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour ){
+	// 【ToDo】未実装
+	return Promise.resolve();	
+
+	// データベースアクセスを伴うのでPromise。
+	// なお、「アクセス頻度」も「最終アクセス」も同じテーブルデータを
+	// 参照するので、SQLへのクエリーは一括して行う。
+
+	// エントリ総数の妥当性チェック。
+	// SELECT owners_hash, COUNT(*) FROM [dbo].[batterylogs] WHERE owners_hash='9050dc4f303icklamzlnal' GROUP BY [owners_hash]
+	// ※905～はテスト用のキー。
+
+	// var isDeviceAccessRatePerHourUnder = function( rate_limit ){}
+
+	// var howManySecondsHavePassedFromLastAccess = function(){}
+	// 【ToDo】未実装。これは、ログデータベースとは別にアクセス管理（IPアドレス）すべきだが、、、
+	//         そこまで実装する暇あるか、今回？
+	//         new Date() 同志の引き算で、mili秒が返る筈。。。
 };
-exports.isDeviceAccessRatePerHourUnder = isDeviceAccessRatePerHourUnder;
+exports.isDeviceAccessRateValied = isDeviceAccessRateValied;
 
 
-var howManySecondsHavePassedFromLastAccess = function(){
-	return 1; // 【ToDo】未実装。これは、ログデータベースとは別にアクセス管理（IPアドレス）すべきだが、、、
-			  //         そこまで実装する暇あるか、今回？
-			  //         new Date() 同志の引き算で、mili秒が返る筈。。。
-};
-exports.howManySecondsHavePassedFromLastAccess = howManySecondsHavePassedFromLastAccess;
+
 
 
 /**

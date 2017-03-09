@@ -22,13 +22,19 @@ exports.factoryImpl = factoryImpl;
 /**
  * 情報表示API：　バージョン表示など
  */
-exports.api_v1_show = function( response, queryFromGet, dataFromPost ){
+exports.api_v1_show = function( queryFromGet, dataFromPost ){
 console.log( queryFromGet );
 	var name = queryFromGet[ "name" ];
 	if( name == "version" ){
-		response.writeJsonAsString( { "version" : "1.00" } );
+		return Promise.resolve({
+			"jsonData" : { "version" : "1.00" },
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	} else {
-		response.writeJsonAsString( { result : "show api is here." } );
+		return Promise.resolve({
+			"jsonData" : { result : "show api is here." },
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	}
 };
 
@@ -59,19 +65,24 @@ factoryImpl[ "CONFIG_SQL" ] = new lib.Factory( CONFIG_SQL );
 /**
  * SQL Server への接続テストAPI
  */
-exports.api_v1_sql = function( response, queryFromGet, dataFromPost ){
+exports.api_v1_sql = function( queryFromGet, dataFromPost ){
 	var mssql = factoryImpl.mssql.getInstance();
 	var config = factoryImpl.CONFIG_SQL.getInstance();
 	var connect = mssql.connect( config );
 
-	connect.then(function(){
-		response.writeJsonAsString({
-			"result" : "sql connection is OK!"
-		});
+	return connect.then(function(){
+		// 何もしない。
 	}).catch(function(err){
-		response.writeJsonAsString( err );
+		return Promise.resolve({
+			"jsonData" : err,
+			"status" : 500 // Internal Error。
+		});
 	}).then(function(){
 		mssql.close();
+		return Promise.resolve({
+			"jsonData" : { "result" : "sql connection is OK!" },
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	});
 };
 
@@ -83,24 +94,40 @@ exports.api_v1_sql = function( response, queryFromGet, dataFromPost ){
 /**
  * バッテリーログをSQLへ記録するAPI
  */
-exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost ){
+exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	var getInsertObjectFromPostData = factoryImpl.sql_parts.getInstance( "getInsertObjectFromPostData");
 	var outJsonData = {};
-	var promise = createPromiseForSqlConnection( 
-					outJsonData, 
-					getInsertObjectFromPostData( dataFromPost ), 
-					factoryImpl.CONFIG_SQL.getInstance()
-	);
+	var inputData = getInsertObjectFromPostData( dataFromPost );
 
-	return promise.then(function( inputData ){
+
+	// ※データフォーマット違反の場合、Promise.reject()するのだが、そうすると
+	//  フォーマットOKでSQL接続のPromiseの生成とを、if文でここに記述する必要がある。
+	//  この分岐は共通的なので、createPromise～()に押し込める設計、とした。
+	// ・・・と考えていたのだけれど、if文で分けたほうが良い気がしてきた。
+	// ⇒変更した。
+	// ▼メモ2017.3.6
+	// コード共通化はクラス継承で実現すればよい。
+	if( inputData.invalid && inputData.invalid.length > 0 ){
+		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 400 // Bad Request
+		});
+	}
+	
+	return createPromiseForSqlConnection( 
+		outJsonData, 
+		inputData, 
+		factoryImpl.CONFIG_SQL.getInstance()
+	).then(function( inputData ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		return new Promise(function(resolve,reject){
 			var isOwnerValid = factoryImpl.sql_parts.getInstance( "isOwnerValid" );
 			var owner_hash = inputData.owner_hash;
 			var is_onwer_valid_promise = isOwnerValid( config.database, owner_hash );
-			is_onwer_valid_promise.then(function(){
-				resolve( inputData ); // ⇒次のthen()が呼ばれる。
+			is_onwer_valid_promise.then(function( maxCount ){
+				resolve( { "inputData" : inputData, "maxCount" : maxCount } ); // ⇒次のthen()が呼ばれる。
 			}).catch(function(err){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
@@ -113,6 +140,14 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 		// > §4.3.2. thenでもrejectする
 		// > このとき、returnしたものがpromiseオブジェクトである場合、そのpromiseオブジェクトの状態によって、
 		// > 次の then に登録されたonFulfilledとonRejectedのうち、どちらが呼ばれるかを決めることができます。
+	}).then(function( result ){
+		// 接続元の接続レート（頻度）の許可／不許可を検証
+		var inputData = result.inputData;
+		var maxCount  = result.maxCount;
+
+		// 【FixME】レートの妥当性など判断。
+		// promise = isDeviceAccessRateValied( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour )
+		return Promise.resolve( inputData );
 	}).then(function( inputData ){
 		return new Promise(function(resolve,reject){
 			var mssql = factoryImpl.mssql.getInstance();
@@ -140,7 +175,10 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close();
-		response.writeJsonAsString( outJsonData );
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	});
 }
 
@@ -151,24 +189,35 @@ exports.api_v1_batterylog_add = function( response, queryFromGet, dataFromPost )
 /**
  * バッテリーログをSQLから、指定されたデバイス（のハッシュ値）のものを取得する。
  */
-exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost ){
+exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
+	// 接続要求のデータフォーマットを検証＆SQL接続を生成
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	var getShowObjectFromGetData = factoryImpl.sql_parts.getInstance( "getShowObjectFromGetData" );
 	var outJsonData = {};
-	var promise = createPromiseForSqlConnection( 
-		outJsonData, 
-		getShowObjectFromGetData( queryFromGet ), 
-		factoryImpl.CONFIG_SQL.getInstance()
-	);
+	var inputData = getShowObjectFromGetData( queryFromGet );
 
-	return promise.then(function( inputData ){
+	// メモ2017.3.6
+	// コード共通化はクラス継承で実現すればよい。
+	if( inputData.invalid && inputData.invalid.length > 0 ){
+		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 400 // Bad Request
+		});
+	}
+	return createPromiseForSqlConnection( 
+		outJsonData, 
+		inputData, 
+		factoryImpl.CONFIG_SQL.getInstance()
+	).then(function( inputData ){
+		// 接続元の認証Y/Nを検証。
 		return new Promise(function(resolve,reject){
 			var config = factoryImpl.CONFIG_SQL.getInstance();
 			var isOwnerValid = factoryImpl.sql_parts.getInstance( "isOwnerValid" );
 			var owner_hash = inputData.owner_hash;
 			var is_onwer_valid_promise = isOwnerValid( config.database, owner_hash );
-			is_onwer_valid_promise.then(function(){
-				resolve( inputData ); // ⇒次のthen()が呼ばれる。
+			is_onwer_valid_promise.then(function( maxCount ){
+				resolve( { "inputData" : inputData, "maxCount" : maxCount } ); // ⇒次のthen()が呼ばれる。
 			}).catch(function(err){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
@@ -176,7 +225,16 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 				reject(); // ⇒次のcatch()が呼ばれる。
 			});
 		});
+	}).then(function( result ){
+		// 接続元の接続レート（頻度）の許可／不許可を検証
+		var inputData = result.inputData;
+		var maxCount  = result.maxCount;
+
+		// 【FixME】レートの妥当性など判断。
+		// promise = isDeviceAccessRateValied()
+		return Promise.resolve( inputData );
 	}).then(function( inputData ){
+		// 対象のログデータをSQLへ要求
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var getListOfBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "getListOfBatteryLogWhereDeviceKey" );
 		return getListOfBatteryLogWhereDeviceKey(
@@ -196,7 +254,10 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close();
-		response.writeJsonAsString( outJsonData );
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	});
 };
 
@@ -206,7 +267,7 @@ exports.api_v1_batterylog_show = function( response, queryFromGet, dataFromPost 
 /**
  * バッテリーログをSQLから、指定されたデバイス（のハッシュ値）の、指定された期間を【削除】する。
  */
-exports.api_v1_batterylog_delete = function( response, queryFromGet, dataFromPost ){
+exports.api_v1_batterylog_delete = function( queryFromGet, dataFromPost ){
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	// var outJsonData = {};
 	var outJsonData = { "Error" : "This resouse haven't been made." };
@@ -220,7 +281,10 @@ exports.api_v1_batterylog_delete = function( response, queryFromGet, dataFromPos
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close();
-		response.writeJsonAsString( outJsonData );
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+		});
 	});
 };
 

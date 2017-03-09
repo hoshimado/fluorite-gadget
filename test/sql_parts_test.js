@@ -72,19 +72,6 @@ describe( "sql_parts.js", function(){
                 expect( result ).to.equal( inputDataObj );
             });
         });
-        it("異常系：その前の認証がエラー", function(){
-            var outJsonData = {};
-            var inputDataObj = { "invalid" : "something is wrong." };
-            var sqlConfig = {};
-            var stubs = createAndHookStubs4Mssql( sql_parts );
-            
-            return shouldRejected(
-                sql_parts.createPromiseForSqlConnection( outJsonData, inputDataObj, sqlConfig )
-            ).catch(function(){
-                assert( stubs.connect.notCalled );
-                expect( outJsonData.result ).to.not.be.exist;
-            });
-        });
         it("異常系：SQL接続がエラー", function(){
             var outJsonData = {};
             var inputDataObj = {};
@@ -167,20 +154,19 @@ describe( "sql_parts.js", function(){
 
 
 
-    describe( "::isDeviceAccessRatePerHourUnder()",function(){
+    describe( "::isDeviceAccessRateValid()",function(){
+        // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+        // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+
+        // 直近一時間の記録取得して、その数を数えれば良かろう。
+
+        // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
+        // 本来は、別テーブルでIP含めて管理すべきかも？
+        // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
+
         it("正常系");
         it("異常系");
     })
-    // 直近一時間の記録取得して、その数を数えれば良かろう。
-
-    describe( "::howManySecondsHavePassedFromLastAccess()",function(){
-        it("正常系");
-        it("異常系");
-    })
-    // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
-    // 本来は、別テーブルでIP含めて管理すべきかも？
-    // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
-
 
 
     describe( "::getInsertObjectFromPostData()", function(){
