@@ -317,7 +317,6 @@ describe( "api_sql_tiny.js", function(){
 
                 expect( result ).to.be.exist;
                 expect( result.status ).to.equal( 200 );
-console.log(result);
                 expect( result.jsonData ).to.have.ownProperty( "result" );
             });
 
