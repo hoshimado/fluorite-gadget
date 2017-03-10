@@ -149,32 +149,24 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 		// promise = isDeviceAccessRateValied( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour )
 		return Promise.resolve( inputData );
 	}).then(function( inputData ){
-		return new Promise(function(resolve,reject){
-			var mssql = factoryImpl.mssql.getInstance();
-			var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
-			var owner_hash = inputData.owner_hash;
-			var now_date = new Date();
-			var date_str = now_date.toFormat("YYYY-MM-DD HH24:MI:SS.000"); // data-utilsモジュールでの拡張を利用。
-			var battery_str = inputData.battery_value;
-			var query_str = "INSERT INTO dbo.batterylogs(created_at, battery, owners_hash ) VALUES('" + date_str + "', " + battery_str + ", '" + owner_hash + "')";
-			var sql_query = sql_request.query( query_str );
-			sql_query.then(function(){ // INSERTコマンドのQuery成功時の引数は無し？
-				outJsonData[ "result" ] = "Success to insert " + battery_str + " as batterylog on Database!";
-				outJsonData[ "device_key"] = inputData.owner_hash;
-				resolve();
-			}).catch(function(err){
-				outJsonData[ "error_on_insert" ];
-				reject();
-			});
-		});
-	}).then(function(){
+		var config = factoryImpl.CONFIG_SQL.getInstance();
+		var addBatteryLog2Database = factoryImpl.sql_parts.getInstance("addBatteryLog2Database");
+		return addBatteryLog2Database( config.database, inputData.owner_hash, inputData.battery_value );
+	}).then(function( insertedData ){
 		// 直前の「インサート」処理が成功
+		// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
+		outJsonData[ "result" ] = "Success to insert " + insertedData.battery_value + " as batterylog on Database!";
+		outJsonData[ "device_key"] = insertedData.owner_hash;
+		return Promise.resolve();
 	}).catch(function(){
 		// 直前の「インサート」処理は失敗。
+		outJsonData[ "error_on_insert" ];
+		return Promise.resolve(); // 異常系処理を終えたので、戻すのは「正常」。
 	}).then(function(){
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();
-		mssql.close();
+		mssql.close(); // 【ToDo】create～（）に合わせてWrappwerすべきかな。⇒Test側のstubも合わせて修正。
+
 		return Promise.resolve({
 			"jsonData" : outJsonData,
 			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
@@ -238,7 +230,8 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var getListOfBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "getListOfBatteryLogWhereDeviceKey" );
 		return getListOfBatteryLogWhereDeviceKey(
-			config.database, inputData.owner_hash, 
+			config.database, 
+			inputData.owner_hash, 
 			{ 
 				"start" : inputData.date_start, 
 				"end"   : inputData.date_end

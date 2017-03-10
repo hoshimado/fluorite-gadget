@@ -46,6 +46,8 @@ describe( "api_sql_tiny.js", function(){
                     "createPromiseForSqlConnection" : sinon.stub(),
                     "isOwnerValid" : sinon.stub(),
                     "isDeviceAccessRateValied" : sinon.stub(),
+                    "getInsertObjectFromPostData" : sinon.stub(),
+                    "addBatteryLog2Database" : sinon.stub(),
                     "getShowObjectFromGetData" : sinon.stub(),
                     "getListOfBatteryLogWhereDeviceKey" : sinon.stub()
                 }
@@ -212,6 +214,7 @@ describe( "api_sql_tiny.js", function(){
                 });
 
                 assert( stubs.mssql.close.calledOnce );
+
                 expect( result ).to.be.exist;
                 expect( result.jsonData.table ).to.deep.equal( EXPECTED_RECORDSET );
 
@@ -249,11 +252,82 @@ describe( "api_sql_tiny.js", function(){
         });
         afterEach(function(){});  // 今は無し。
 
-        it("正常系");
+        it("正常系", function(){
+            var queryFromGet = null;
+            var dataFromPost = {
+                "battery_value" : "パーセンテージ",
+                "mac_address" : "識別用のMACアドレス"
+            }; // mac_address の代わりに device_key でもよい。そこはgetInsertObjectFromPostData()の受け持ちなので、ここではテストしない。
+            var EXPECTED_INPUT_DATA = { 
+                "owner_hash" : "MACを元に、getInsert～が変換する識別子",
+                "battery_value" : dataFromPost.battery_value
+            };
+            var EXPECTED_MAX_COUNT = 255;
+
+            stubs.sql_parts.getInsertObjectFromPostData.onCall(0).returns( EXPECTED_INPUT_DATA );
+
+            // beforeEach()で準備される stub に対して、動作を定義する。
+            stubs.sql_parts.createPromiseForSqlConnection.onCall(0).returns(
+                Promise.resolve( EXPECTED_INPUT_DATA )
+            );
+            stubs.sql_parts.isOwnerValid.onCall(0).returns(
+                Promise.resolve( EXPECTED_MAX_COUNT )
+            );
+            stubs.sql_parts.isDeviceAccessRateValied.onCall(0).returns(
+                Promise.resolve()
+            );
+            stubs.sql_parts.addBatteryLog2Database.onCall(0).returns(
+                Promise.resolve({
+                    "battery_value" : EXPECTED_INPUT_DATA.battery_value,
+                    "owner_hash" : EXPECTED_INPUT_DATA.owner_hash
+                })
+            );
+
+            return shouldFulfilled(
+                api_v1_batterylog_add( queryFromGet, dataFromPost )
+            ).then(function( result ){
+                var stubGetInsertObject = stubs.sql_parts.getInsertObjectFromPostData;
+                var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
+                var stubAdd = stubs.sql_parts.addBatteryLog2Database;
+
+                assert( stubGetInsertObject.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
+                expect( stubGetInsertObject.getCall(0).args[0] ).to.equal( dataFromPost );
+
+                assert( stubCreateConnection.calledOnce, "SQLへの接続生成、が一度呼ばれること" );
+                expect( stubCreateConnection.getCall(0).args[0] ).to.be.an('object');
+                expect( stubCreateConnection.getCall(0).args[1] ).to.have.ownProperty('owner_hash');
+
+                assert( stubs.sql_parts.isOwnerValid.calledOnce, "アクセス元の認証、が一度呼ばれること" );
+                expect( stubs.sql_parts.isOwnerValid.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubs.sql_parts.isOwnerValid.getCall(0).args[1] ).to.equal( EXPECTED_INPUT_DATA.owner_hash );
+
+                assert( stubs.sql_parts.isDeviceAccessRateValied.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
+                expect( stubs.sql_parts.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubs.sql_parts.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
+                expect( stubs.sql_parts.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
+                // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+                // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+
+                assert( stubAdd.calledOnce, "SQLへのログ追加クエリー。addBatteryLog2Database()が1度呼ばれること。" );
+                expect( stubAdd.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubAdd.getCall(0).args[1] ).to.equal( EXPECTED_INPUT_DATA.owner_hash );
+                expect( stubAdd.getCall(0).args[2] ).to.equal( EXPECTED_INPUT_DATA.battery_value );
+
+                assert( stubs.mssql.close.calledOnce );
+
+                expect( result ).to.be.exist;
+                expect( result.status ).to.equal( 200 );
+console.log(result);
+                expect( result.jsonData ).to.have.ownProperty( "result" );
+            });
+
+        });
         it("異常系：認証NGなら、401を返す");
         it("異常系：レートリミット違反なら（時間当たりの回数超過）、503を返す");
         it("異常系：その他のエラーなら503を返す");
     });
+
+
     describe("::api_v1_batterylog_delete()", function(){
         var api_v1_batterylog_delete = api_sql.api_v1_batterylog_delete;
         var stubs;
