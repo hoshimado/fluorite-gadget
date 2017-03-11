@@ -175,7 +175,7 @@ describe( "api_sql_tiny.js", function(){
                 Promise.resolve( EXPECTED_MAX_COUNT )
             );
             stubs.sql_parts.isDeviceAccessRateValied.onCall(0).returns(
-                Promise.resolve()
+                Promise.resolve( EXPECTED_INPUT_DATA )
             );
             stubs.sql_parts.getListOfBatteryLogWhereDeviceKey.onCall(0).returns(
                 Promise.resolve( EXPECTED_RECORDSET )
@@ -185,6 +185,7 @@ describe( "api_sql_tiny.js", function(){
                 api_v1_batterylog_show( queryFromGet, dataFromPost )
             ).then(function( result ){
                 var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
+                var isRateLimite = stubs.sql_parts.isDeviceAccessRateValied;
                 var stubList = stubs.sql_parts.getListOfBatteryLogWhereDeviceKey;
 
                 assert( stubs.sql_parts.getShowObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
@@ -198,11 +199,11 @@ describe( "api_sql_tiny.js", function(){
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
                 
-                assert( stubs.sql_parts.isDeviceAccessRateValied.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
-                expect( stubs.sql_parts.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
-                expect( stubs.sql_parts.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
-                expect( stubs.sql_parts.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
-                // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+                assert( isRateLimite.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
+                expect( isRateLimite.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( isRateLimite.getCall(0).args[1] ).to.equal( EXPECTED_INPUT_DATA );
+                expect( isRateLimite.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
+                expect( isRateLimite.getCall(0).args[3] ).to.equal( 30, "1時間辺りのアクセス可能回数" );
                 // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
 
                 assert( stubList.calledOnce, "SQLへのログ取得クエリー。getListOfBatteryLogWhereDeviceKey()が1度呼ばれること。" );
@@ -274,7 +275,7 @@ describe( "api_sql_tiny.js", function(){
                 Promise.resolve( EXPECTED_MAX_COUNT )
             );
             stubs.sql_parts.isDeviceAccessRateValied.onCall(0).returns(
-                Promise.resolve()
+                Promise.resolve( EXPECTED_INPUT_DATA )
             );
             stubs.sql_parts.addBatteryLog2Database.onCall(0).returns(
                 Promise.resolve({
@@ -288,6 +289,7 @@ describe( "api_sql_tiny.js", function(){
             ).then(function( result ){
                 var stubGetInsertObject = stubs.sql_parts.getInsertObjectFromPostData;
                 var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
+                var isRateLimite = stubs.sql_parts.isDeviceAccessRateValied;
                 var stubAdd = stubs.sql_parts.addBatteryLog2Database;
 
                 assert( stubGetInsertObject.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
@@ -301,11 +303,11 @@ describe( "api_sql_tiny.js", function(){
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
                 expect( stubs.sql_parts.isOwnerValid.getCall(0).args[1] ).to.equal( EXPECTED_INPUT_DATA.owner_hash );
 
-                assert( stubs.sql_parts.isDeviceAccessRateValied.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
-                expect( stubs.sql_parts.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
-                expect( stubs.sql_parts.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
-                expect( stubs.sql_parts.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
-                // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
+                assert( isRateLimite.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
+                expect( isRateLimite.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( isRateLimite.getCall(0).args[1] ).to.equal( EXPECTED_INPUT_DATA );
+                expect( isRateLimite.getCall(0).args[2] ).to.equal( EXPECTED_MAX_COUNT );
+                expect( isRateLimite.getCall(0).args[3] ).to.equal( 30 );
                 // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
 
                 assert( stubAdd.calledOnce, "SQLへのログ追加クエリー。addBatteryLog2Database()が1度呼ばれること。" );

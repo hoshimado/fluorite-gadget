@@ -61,6 +61,15 @@ factoryImpl[ "CONFIG_SQL" ] = new lib.Factory( CONFIG_SQL );
 
 
 
+/**
+ * @type アクセス回数など
+ */
+var RATE_LIMIT = {
+	TIMES_PER_HOUR : 30
+};
+factoryImpl[ "RATE_LIMIT" ] = new lib.Factory( RATE_LIMIT );
+
+
 
 /**
  * SQL Server への接続テストAPI
@@ -140,14 +149,20 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 		// > §4.3.2. thenでもrejectする
 		// > このとき、returnしたものがpromiseオブジェクトである場合、そのpromiseオブジェクトの状態によって、
 		// > 次の then に登録されたonFulfilledとonRejectedのうち、どちらが呼ばれるかを決めることができます。
-	}).then(function( result ){
+	}).then(function( permittedInfomation ){
 		// 接続元の接続レート（頻度）の許可／不許可を検証
-		var inputData = result.inputData;
-		var maxCount  = result.maxCount;
+		var inputData = permittedInfomation.inputData;
+		var maxCount  = permittedInfomation.maxCount;
+		var isDeviceAccessRateValied = factoryImpl.sql_parts.getInstance("isDeviceAccessRateValied");
+		var config = factoryImpl.CONFIG_SQL.getInstance();
+		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		// 【FixME】レートの妥当性など判断。
-		// promise = isDeviceAccessRateValied( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour )
-		return Promise.resolve( inputData );
+		return isDeviceAccessRateValied( 
+			config.database, 
+			inputData, 
+			maxCount, 
+			limit.TIMES_PER_HOUR
+		);
 	}).then(function( inputData ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var addBatteryLog2Database = factoryImpl.sql_parts.getInstance("addBatteryLog2Database");
@@ -217,18 +232,25 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 				reject(); // ⇒次のcatch()が呼ばれる。
 			});
 		});
-	}).then(function( result ){
+	}).then(function( permittedInfomation ){
 		// 接続元の接続レート（頻度）の許可／不許可を検証
-		var inputData = result.inputData;
-		var maxCount  = result.maxCount;
+		var inputData = permittedInfomation.inputData;
+		var maxCount  = permittedInfomation.maxCount;
+		var isDeviceAccessRateValied = factoryImpl.sql_parts.getInstance("isDeviceAccessRateValied");
+		var config = factoryImpl.CONFIG_SQL.getInstance();
+		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		// 【FixME】レートの妥当性など判断。
-		// promise = isDeviceAccessRateValied()
-		return Promise.resolve( inputData );
+		return isDeviceAccessRateValied( 
+			config.database, 
+			inputData, 
+			maxCount, 
+			limit.TIMES_PER_HOUR
+		);
 	}).then(function( inputData ){
 		// 対象のログデータをSQLへ要求
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var getListOfBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "getListOfBatteryLogWhereDeviceKey" );
+
 		return getListOfBatteryLogWhereDeviceKey(
 			config.database, 
 			inputData.owner_hash, 

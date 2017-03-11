@@ -107,10 +107,16 @@ var isOwnerValid = function( databaseName, ownerHash ){
 exports.isOwnerValid = isOwnerValid;
 
 
-
-var isDeviceAccessRateValied = function( databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour ){
+/**
+ * @param{String} databaseName データベース名
+ * @param{Object} inputData プロパティに「owner_hash」持つこと。inputData自体はresolve()の引数に渡される。
+ * @param{Number} maxNumberOfEntrys 登録するエントリーの上限
+ * @param{Number} rateLimitePerHour １ｈ当たりのアクセス数の上限
+ */
+var isDeviceAccessRateValied = function( databaseName, inputData, maxNumberOfEntrys, rateLimitePerHour ){
 	// 【ToDo】未実装
-	return Promise.resolve();	
+	var deviceKey = inputData.owner_hash;
+	return Promise.resolve( inputData );	
 
 	// データベースアクセスを伴うのでPromise。
 	// なお、「アクセス頻度」も「最終アクセス」も同じテーブルデータを
