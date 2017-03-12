@@ -81,13 +81,13 @@ exports.getHashHexStr = getHashHexStr;
  * @param{String} ownerHash アクセスデバイスごとの一意の識別子。これが「認証用SQLデータベース」に入っていればアクセスOK。
  * @returns{Promise} 検証結果。Promise経由で非同期に返る。resolve()は引数無し。reject()はエラー内容が引数に入る。
  */
-var isOwnerValid = function( databaseName, ownerHash ){
+var isOwnerValid = function( databaseName, deviceKey ){
 	return new Promise(function(resolve,reject){
 		var mssql = factoryImpl.mssql.getInstance();
 		var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
 		var query_str = "SELECT owners_hash, max_entrys";
 		query_str += " FROM [" + databaseName + "].dbo.owners_permission";
-		query_str += " WHERE [owners_hash]='" + ownerHash + "'";
+		query_str += " WHERE [owners_hash]='" + deviceKey + "'";
 		sql_request.query( query_str ).then(function(recordset){
 			var n = recordset.length;
 			if( 0 < n ){
@@ -109,14 +109,14 @@ exports.isOwnerValid = isOwnerValid;
 
 /**
  * @param{String} databaseName データベース名
- * @param{Object} inputData プロパティに「owner_hash」持つこと。inputData自体はresolve()の引数に渡される。
- * @param{Number} maxNumberOfEntrys 登録するエントリーの上限
+ * @param{Object} inputData プロパティに「device_key, max_count」持つこと。inputData自体はresolve()の引数に渡される。
  * @param{Number} rateLimitePerHour １ｈ当たりのアクセス数の上限
  */
-var isDeviceAccessRateValied = function( databaseName, inputData, maxNumberOfEntrys, rateLimitePerHour ){
+var isDeviceAccessRateValied = function( databaseName, param, rateLimitePerHour ){
 	// 【ToDo】未実装
-	var deviceKey = inputData.owner_hash;
-	return Promise.resolve( inputData );	
+	var deviceKey = param.getDeviceKey();
+	var max_count = param.getMaxCount();
+	return Promise.resolve( param );	
 
 	// データベースアクセスを伴うのでPromise。
 	// なお、「アクセス頻度」も「最終アクセス」も同じテーブルデータを
@@ -158,9 +158,9 @@ var getInsertObjectFromPostData = function( postData ){
 
 	if( postData["mac_address"] && postData["mac_address"].length > 0 ){
 		// mac_addressは1文字以上必須とする。
-		valid_data[ "owner_hash" ] = getHashHexStr( postData["mac_address"], "md5" );
+		valid_data[ "device_key" ] = getHashHexStr( postData["mac_address"], "md5" );
 	}else if( postData["device_key"] ){
-		valid_data[ "owner_hash" ] = postData["device_key"];
+		valid_data[ "device_key" ] = postData["device_key"];
 	}else{
 		valid_data[ "invalid" ] = "there is NOT mac_address nor device_key.";
 	}
@@ -195,7 +195,7 @@ exports.addBatteryLog2Database = addBatteryLog2Database;
  * API呼び出しのフォーマットのチェックを兼ねる。フォーマット不正なら { "invalid" : "理由" } を返却。
  * 入力データは、getData = { device_key } が期待値。
  * 
- * @returns オブジェクト{ owner_hash: "" }。フォーマット違反なら{ "invalid" : "理由" }
+ * @returns オブジェクト{ device_key: "" }。フォーマット違反なら{ "invalid" : "理由" }
  */
 var getShowObjectFromGetData = function( getData ){
 	var valid_data = {}
@@ -208,7 +208,7 @@ var getShowObjectFromGetData = function( getData ){
 	var date_end = new Date(); // 現時点までを取得。
 
 	if( getData[ "device_key" ] ){
-		valid_data[ "owner_hash" ] = getData["device_key"];
+		valid_data[ "device_key" ] = getData["device_key"];
 		valid_data[ "date_start" ] = getData.date_start ? getData.date_start : date_start.toFormat("YYYY-MM-DD"); // data-utilsモジュールでの拡張を利用。
 		valid_data[ "date_end"   ] = getData.date_end ? getData.date_end : date_end.toFormat("YYYY-MM-DD");
 		// 【FixMe】終端は「その日の末日」か「翌日」にすべきかなぁ。

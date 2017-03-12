@@ -178,7 +178,7 @@ describe( "sql_parts.js", function(){
             };
             var result = getInsertObjectFromPostData( postData );
             expect( result.invalid ).to.not.be.exist;
-            expect( result.owner_hash ).to.equal( "b99412a59efaab99995516205bae68e3",
+            expect( result.device_key ).to.equal( "b99412a59efaab99995516205bae68e3",
             "MACアドレスとして与えた値をベースにmd5ハッシュが生成されていること" );
             expect( parseInt(result.battery_value) ).to.equal( 99 );
         });
@@ -189,7 +189,7 @@ describe( "sql_parts.js", function(){
             };
             var result = getInsertObjectFromPostData( postData );
             expect( result.invalid ).to.not.be.exist;
-            expect( result.owner_hash ).to.equal( postData.device_key );
+            expect( result.device_key ).to.equal( postData.device_key );
             expect( parseInt(result.battery_value) ).to.equal( 81 );
         });
         it("return invalid when battery_value is NOT Number.", function(){
@@ -233,7 +233,7 @@ describe( "sql_parts.js", function(){
             var past_date = new Date();
             past_date.setTime( now_date.getTime() - 7 * 86400000 ); //日数 * 1日のミリ秒数;;
             expect( result.invalid ).to.not.be.exist;
-            expect( result.owner_hash ).to.equal( dataGet.device_key );
+            expect( result.device_key ).to.equal( dataGet.device_key );
             expect( result.date_start )
             .to.equal(past_date.toFormat("YYYY-MM-DD"), "無指定なら、「7日前」として扱う。" );
             expect( result.date_end ).to.equal( now_date.toFormat("YYYY-MM-DD"), "無指定なら、「今日」として扱う。" );
@@ -246,7 +246,7 @@ describe( "sql_parts.js", function(){
             var result = getShowObjectFromGetData( dataGet );
             var now_date = new Date();
             expect( result.invalid ).to.not.be.exist;
-            expect( result.owner_hash ).to.equal( dataGet.device_key );
+            expect( result.device_key ).to.equal( dataGet.device_key );
             expect( result.date_start ).to.equal( dataGet.date_start, "開始日の指定が在れば、それを採用" ); 
             assert( result.date_start.match(/[0-9]{4,4}\-[0-9][0-9]\-[0-9][0-9]/), "yyyy-mm-ddのフォーマットであること" );
             expect( result.date_end ).to.equal( now_date.toFormat("YYYY-MM-DD"), "無指定なら、「今日」として扱う。" );
@@ -261,7 +261,7 @@ describe( "sql_parts.js", function(){
             var past_date = new Date();
             past_date.setTime( now_date.getTime() - 7 * 86400000 ); //日数 * 1日のミリ秒数;;
             expect( result.invalid ).to.not.be.exist;
-            expect( result.owner_hash ).to.equal( dataGet.device_key );
+            expect( result.device_key ).to.equal( dataGet.device_key );
             expect( result.date_start )
             .to.equal(past_date.toFormat("YYYY-MM-DD"), "無指定なら、「7日前」として扱う。" );
             expect( result.date_end ).to.equal( dataGet.date_end, "終了日の指定が在れば、それを採用" ); 
