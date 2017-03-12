@@ -86,6 +86,7 @@ var API_PARAM = function(init){
 };
 var isDefined = function( self, prop ){
 	if( !self[prop] ){
+		// ここは、正常系では呼ばれないハズなので「console.log()」を直接呼ぶ。
 		console.log( prop + " is NOT defind" );
 	}
 	return self[prop];
