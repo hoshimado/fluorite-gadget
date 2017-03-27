@@ -87,7 +87,7 @@ var API_PARAM = function(init){
 var isDefined = function( self, prop ){
 	if( !self[prop] ){
 		// ここは、正常系では呼ばれないハズなので「console.log()」を直接呼ぶ。
-		console.log( prop + " is NOT defind" );
+		console.log( "[API_PARAM]::" + prop + " is NOT defind" );
 	}
 	return self[prop];
 };
@@ -263,6 +263,8 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 			is_onwer_valid_promise.then(function( maxCount ){
 				resolve({ 
 					"device_key" : param.getDeviceKey(), 
+					"date_start" : param.getStartDate(),
+					"date_end" : param.getEndDate(),
 					"max_count" : maxCount 
 				}); // ⇒次のthen()が呼ばれる。
 			}).catch(function(err){
@@ -322,15 +324,81 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
  * バッテリーログをSQLから、指定されたデバイス（のハッシュ値）の、指定された期間を【削除】する。
  */
 exports.api_v1_batterylog_delete = function( queryFromGet, dataFromPost ){
+	// 接続要求のデータフォーマットを検証＆SQL接続を生成
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
-	// var outJsonData = {};
-	var outJsonData = { "Error" : "This resouse haven't been made." };
-	var promise = Promise.resolve();
-	
-	return promise.then(function( inputData ){
-		// 【FixME】正常系
+	var getDeleteObjectFromGetData = factoryImpl.sql_parts.getInstance( "getDeleteObjectFromGetData" );
+	var outJsonData = {};
+	var inputData = getDeleteObjectFromGetData( queryFromGet );
+
+	// メモ2017.3.6
+	// コード共通化はクラス継承で実現すればよい。
+	if( inputData.invalid && inputData.invalid.length > 0 ){
+		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 400 // Bad Request
+		});
+	}
+	return createPromiseForSqlConnection( 
+		outJsonData, 
+		inputData, 
+		factoryImpl.CONFIG_SQL.getInstance()
+	).then(function( inputData ){
+		// 接続元の認証Y/Nを検証。
+		var param = new API_PARAM( inputData );
+		return new Promise(function(resolve,reject){
+			var config = factoryImpl.CONFIG_SQL.getInstance();
+			var isOwnerValid = factoryImpl.sql_parts.getInstance( "isOwnerValid" );
+			var is_onwer_valid_promise = isOwnerValid( 
+				config.database, 
+				param.getDeviceKey() 
+			);
+			is_onwer_valid_promise.then(function( maxCount ){
+				resolve({ 
+					"device_key" : param.getDeviceKey(), 
+					"date_start" : param.getStartDate(),
+					"date_end" : param.getEndDate(),
+					"max_count" : maxCount 
+				}); // ⇒次のthen()が呼ばれる。
+			}).catch(function(err){
+				if( err ){
+					outJsonData[ "errer_on_validation" ] = err;
+				}
+				reject(); // ⇒次のcatch()が呼ばれる。
+			});
+		});
+	}).then(function( permittedInfomation ){
+		// 接続元の接続レート（頻度）の許可／不許可を検証
+		var param = new API_PARAM( permittedInfomation );
+		var isDeviceAccessRateValied = factoryImpl.sql_parts.getInstance("isDeviceAccessRateValied");
+		var config = factoryImpl.CONFIG_SQL.getInstance();
+		var limit = factoryImpl.RATE_LIMIT.getInstance();
+
+		return isDeviceAccessRateValied( 
+			config.database, 
+			param, 
+			limit.TIMES_PER_HOUR
+		);
+	}).then(function( inputData ){
+		// 対象のログデータをSQLへ要求
+		var param = new API_PARAM( inputData );
+		var config = factoryImpl.CONFIG_SQL.getInstance();
+		var deleteBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "deleteBatteryLogWhereDeviceKey" );
+
+		return deleteBatteryLogWhereDeviceKey(
+			config.database, 
+			param.getDeviceKey(), 
+			{ 
+				"start" : param.getStartDate(), 
+				"end"   : param.getEndDate()
+			}
+		);
+	}).then(function(){
+		// 直前の「セレクト」処理が成功
+		// ※何もしない
 	}).catch(function(){
-		// 【FixME】異常系
+		// 直前の「セレクト」処理は失敗。
+		outJsonData[ "error_on_select" ];
 	}).then(function(){
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();

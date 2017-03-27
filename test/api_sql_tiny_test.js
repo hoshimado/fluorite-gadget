@@ -49,7 +49,9 @@ describe( "api_sql_tiny.js", function(){
                     "getInsertObjectFromPostData" : sinon.stub(),
                     "addBatteryLog2Database" : sinon.stub(),
                     "getShowObjectFromGetData" : sinon.stub(),
-                    "getListOfBatteryLogWhereDeviceKey" : sinon.stub()
+                    "getListOfBatteryLogWhereDeviceKey" : sinon.stub(),
+                    "getDeleteObjectFromGetData" : sinon.stub(), 
+                    "deleteBatteryLogWhereDeviceKey" : sinon.stub()
                 }
             };
         };
@@ -201,9 +203,11 @@ describe( "api_sql_tiny.js", function(){
                 
                 assert( isRateLimite.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
                 expect( isRateLimite.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
-                expect( isRateLimite.getCall(0).args[1].device_key ).to.equal( EXPECTED_INPUT_DATA.device_key );
-                expect( isRateLimite.getCall(0).args[1].battery_value ).to.equal( EXPECTED_INPUT_DATA.battery_value );
-                expect( isRateLimite.getCall(0).args[1].max_count ).to.equal( EXPECTED_MAX_COUNT );
+                expect( isRateLimite.getCall(0).args[1].getDeviceKey() ).to.equal( EXPECTED_INPUT_DATA.device_key );
+                expect( isRateLimite.getCall(0).args[1].getBatteryValue() ).to.equal( EXPECTED_INPUT_DATA.battery_value );
+                expect( isRateLimite.getCall(0).args[1].getMaxCount() ).to.equal( EXPECTED_MAX_COUNT );
+                expect( isRateLimite.getCall(0).args[1].getStartDate() ).to.equal( EXPECTED_INPUT_DATA.date_start );
+                expect( isRateLimite.getCall(0).args[1].getEndDate() ).to.equal( EXPECTED_INPUT_DATA.date_end );
                 expect( isRateLimite.getCall(0).args[2] ).to.equal( 30, "1時間辺りのアクセス可能回数" );
                 // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
 
@@ -343,7 +347,74 @@ describe( "api_sql_tiny.js", function(){
         });
         afterEach(function(){});  // 今は無し。
 
-        it("正常系");
+        it("正常系", function(){
+            var queryFromGet = { "device_key" : "ほげふがぴよ" };
+            var dataFromPost = null;
+            var EXPECTED_INPUT_DATA = { 
+                "device_key" : queryFromGet.device_key,
+                "date_start" : null, // queryGetに無い場合は、nullがデフォルト値。
+                "date_end"   : "2017-02-14" // queryGetに無い場合でも、、デフォルトを生成する。
+            };
+            var EXPECTED_MAX_COUNT = 255;
+
+            stubs.sql_parts.getDeleteObjectFromGetData.onCall(0).returns( EXPECTED_INPUT_DATA );
+
+            // beforeEach()で準備される stub に対して、動作を定義する。
+            stubs.sql_parts.createPromiseForSqlConnection.onCall(0).returns(
+                Promise.resolve( EXPECTED_INPUT_DATA )
+            );
+            stubs.sql_parts.isOwnerValid.onCall(0).returns(
+                Promise.resolve( EXPECTED_MAX_COUNT )
+            );
+            stubs.sql_parts.isDeviceAccessRateValied.onCall(0).returns(
+                Promise.resolve( EXPECTED_INPUT_DATA )
+            );
+            stubs.sql_parts.deleteBatteryLogWhereDeviceKey.onCall(0).returns(
+                Promise.resolve()
+            );
+
+            return shouldFulfilled(
+                api_v1_batterylog_delete( queryFromGet, dataFromPost )
+            ).then(function( result ){
+                var stubCreateConnection = stubs.sql_parts.createPromiseForSqlConnection;
+                var isRateLimite = stubs.sql_parts.isDeviceAccessRateValied;
+                var stubDelete = stubs.sql_parts.deleteBatteryLogWhereDeviceKey;
+
+                assert( stubs.sql_parts.getDeleteObjectFromGetData.calledOnce, "呼び出しパラメータの妥当性検証＆整形、が一度呼ばれること" );
+                expect( stubs.sql_parts.getDeleteObjectFromGetData.getCall(0).args[0] ).to.equal(queryFromGet);
+
+                assert( stubCreateConnection.calledOnce, "SQLへの接続生成、が一度呼ばれること" );
+                expect( stubCreateConnection.getCall(0).args[0] ).to.be.an('object');
+                expect( stubCreateConnection.getCall(0).args[1] ).to.have.ownProperty('device_key');
+
+                assert( stubs.sql_parts.isOwnerValid.calledOnce, "アクセス元の認証、が一度呼ばれること" );
+                expect( stubs.sql_parts.isOwnerValid.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubs.sql_parts.isOwnerValid.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
+                
+                assert( isRateLimite.calledOnce, "アクセス頻度の認証、が一度呼ばれること" );
+                expect( isRateLimite.getCall(0).args[1].getDeviceKey() ).to.equal( EXPECTED_INPUT_DATA.device_key );
+                expect( isRateLimite.getCall(0).args[1].getBatteryValue() ).to.equal( EXPECTED_INPUT_DATA.battery_value );
+                expect( isRateLimite.getCall(0).args[1].getMaxCount() ).to.equal( EXPECTED_MAX_COUNT );
+                expect( isRateLimite.getCall(0).args[1].getStartDate() ).to.equal( EXPECTED_INPUT_DATA.date_start );
+                expect( isRateLimite.getCall(0).args[1].getEndDate() ).to.equal( EXPECTED_INPUT_DATA.date_end );
+                expect( isRateLimite.getCall(0).args[2] ).to.equal( 30, "1時間辺りのアクセス可能回数" );
+                // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+
+                assert( stubDelete.calledOnce, "SQLへのログ削除クエリー。deleteBatteryLogWhereDeviceKey()が1度呼ばれること。" );
+                expect( stubDelete.getCall(0).args[0] ).to.equal( TEST_CONFIG_SQL.database );
+                expect( stubDelete.getCall(0).args[1] ).to.equal( queryFromGet.device_key );
+                expect( stubDelete.getCall(0).args[2] ).to.deep.equal({
+                    "start" : EXPECTED_INPUT_DATA.date_start,
+                    "end"   : EXPECTED_INPUT_DATA.date_end 
+                });
+
+                assert( stubs.mssql.close.calledOnce );
+
+                expect( result ).to.be.exist;
+
+                // 【FixMe】200をwriteJsonで返している検証が未記述。
+            });
+        });
         it("異常系：認証NGなら、401を返す");
         it("異常系：レートリミット違反なら（時間当たりの回数超過？）、503を返す");
         it("異常系：その他のエラーなら503を返す");

@@ -305,6 +305,7 @@ describe( "sql_parts.js", function(){
 
     describe("::getListOfBatteryLogWhereDeviceKey()", function(){
         var getListOfBatteryLogWhereDeviceKey = sql_parts.getListOfBatteryLogWhereDeviceKey;
+
         it("指定された期間{start, end}でのQuery発行", function(){
             var stubs = createAndHookStubs4Mssql( sql_parts );
             var stub_query = stubs.Request_query;
@@ -370,6 +371,131 @@ describe( "sql_parts.js", function(){
                 )
             });
         });
+    });
+
+
+    describe("::getDeleteObjectFromGetData()", function(){
+        var getDeleteObjectFromGetData = sql_parts.getDeleteObjectFromGetData;
+        it("return valid-Object from GET data with device_key only.", function(){
+            var dataGet = { "device_key" : "ほげふがぴよ" };
+            var now_date = new Date();
+            var past_date = new Date();
+            var result = getDeleteObjectFromGetData( dataGet );
+
+            past_date.setTime( now_date.getTime() - 8 * 86400000 ); //日数 * 1日のミリ秒数;;
+            expect( result.invalid ).to.not.be.exist;
+            expect( result.device_key ).to.equal( dataGet.device_key );
+            expect( result.date_start )
+            .to.equal( null, "無指定なら、古いほうは指定無し＝null" );
+            expect( result.date_end ).to.equal( past_date.toFormat("YYYY-MM-DD"), "無指定なら、「7日より前(0:00でOK)を全て」として扱う。" );
+        });
+        it("return valid-Object from GET data with device_key, date_start.", function(){
+            var dataGet = { 
+                "device_key" : "ほげふがぴよ",
+                "date_start" : "2017-02-17" 
+            };
+            var now_date = new Date();
+            var past_date = new Date();
+            var result = getDeleteObjectFromGetData( dataGet );
+
+            past_date.setTime( now_date.getTime() - 8 * 86400000 ); //日数 * 1日のミリ秒数;;
+            expect( result.invalid ).to.not.be.exist;
+            expect( result.device_key ).to.equal( dataGet.device_key );
+            expect( result.date_start ).to.equal( dataGet.date_start, "開始日の指定が在れば、それを採用" ); 
+            assert( result.date_start.match(/[0-9]{4,4}\-[0-9][0-9]\-[0-9][0-9]/), "yyyy-mm-ddのフォーマットであること" );
+            expect( result.date_end ).to.equal( past_date.toFormat("YYYY-MM-DD"), "終了日が無指定なら、「7日より前(0:00でOK)を全て」として扱う。" );
+        });
+        it("return valid-Object from GET data with device_key, date_end.", function(){
+            var dataGet = { 
+                "device_key" : "ほげふがぴよ",
+                "date_end" : "2017-02-17" 
+            };
+            var now_date = new Date();
+            var result = getDeleteObjectFromGetData( dataGet );
+
+            expect( result.invalid ).to.not.be.exist;
+            expect( result.device_key ).to.equal( dataGet.device_key );
+            expect( result.date_start )
+            .to.equal( null, "無指定なら、無期限（null）として扱う。" );
+            expect( result.date_end ).to.equal( dataGet.date_end, "終了日の指定が在れば、それを採用" ); 
+            assert( result.date_end.match(/[0-9]{4,4}\-[0-9][0-9]\-[0-9][0-9]/), "yyyy-mm-ddのフォーマットであること" );
+        });
+        it("return invalid when {date_start, date_end}メンバのフォーマット「yyyy-mm-dd」に NOT 準拠。", function(){
+            var dataGet = {
+                "device_key" : "ほげふがぴよ",
+                "date_start" : "2017-01"
+            };
+            var result = getDeleteObjectFromGetData( dataGet );
+            expect( result.invalid ).to.be.exist;
+
+            var dataGet = {
+                "device_key" : "ほげふがぴよ",
+                "date_end" : "2017-01"
+            };
+            result = getDeleteObjectFromGetData( dataGet );
+            expect( result.invalid ).to.be.exist;
+        });
+        it("return invalid when GET data DONT have device_key regardless of other parameters.", function(){
+            var dataGet = { "mac_address" : "00-56-00-72-00-00-00-E0" }; // mac_addressではなくdevice_keyが正しい。
+            var result = getDeleteObjectFromGetData( dataGet );
+            expect( result.invalid ).to.be.exist;
+
+            dataGet = { 
+                "date_start" : "2017-02-17" 
+            };
+            result = getDeleteObjectFromGetData( dataGet );
+            expect( result.invalid ).to.be.exist;
+
+            dataGet = { 
+                "date_start" : "2017-02-01",
+                "date_end"   : "2017-02-17" 
+            };
+            result = getDeleteObjectFromGetData( dataGet );
+            expect( result.invalid ).to.be.exist;
+        });
+    });
+
+    describe("::deleteBatterylogWhereDeviceKey", function(){
+        var deleteBatteryLogWhereDeviceKey = sql_parts.deleteBatteryLogWhereDeviceKey;
+        it("指定された期間{start, end}でのQuery発行",function(){
+            var stubs = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stubs.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげふがぴよ";
+            var EXPECTED_PERIOD = {
+                "start" : "2017-01-01",
+                "end"   : "2017-01-31"
+            };
+
+            stub_query.onCall(0).returns(
+                Promise.resolve()
+            );
+            
+            return shouldFulfilled(
+                deleteBatteryLogWhereDeviceKey( 
+                    TEST_DATABASE_NAME, 
+                    EXPECTED_DEVICE_KEY,
+                    EXPECTED_PERIOD
+                )
+            ).then(function(){
+                var EXPECTED_QUERY_STR = "DELETE FROM [";
+                EXPECTED_QUERY_STR += TEST_DATABASE_NAME;
+                EXPECTED_QUERY_STR += "].dbo.batterylogs WHERE [owners_hash]='";
+                EXPECTED_QUERY_STR += EXPECTED_DEVICE_KEY;
+                EXPECTED_QUERY_STR += "' AND [created_at] > '";
+                EXPECTED_QUERY_STR += EXPECTED_PERIOD.start;
+                EXPECTED_QUERY_STR += "' AND [created_at] <= '";
+                EXPECTED_QUERY_STR += EXPECTED_PERIOD.end;
+                EXPECTED_QUERY_STR += " 23:59'"; // その日の最後、として指定する。
+                // DELETE FROM [tinydb].dbo.batterylogs WHERE [owners_hash]='xxxx' AND [created_at] > '2017/04/04' AND [created_at] <= '2017/04/09 23:59'
+
+
+                assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );
+                expect( stub_query.getCall(0).args[0] ).to.equal(
+                    EXPECTED_QUERY_STR
+                )
+            });
+        });
+        it("削除期間の引数は{start: null, end, null}を許容する→WHEREに入れない（将来拡張を見込み）");
     });
 /*
     参照先Webページメモ　※最下段にも、同じものを記載。
