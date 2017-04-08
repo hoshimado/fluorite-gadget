@@ -116,7 +116,17 @@ var isDeviceAccessRateValied = function( databaseName, param, rateLimitePerHour 
 	// 【ToDo】未実装
 	var deviceKey = param.getDeviceKey();
 	var max_count = param.getMaxCount();
-	return Promise.resolve( param );	
+
+	return new Promise(function(resolve,reject){
+		var mssql = factoryImpl.mssql.getInstance();
+		var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
+		var query_str = "SELECT [owners_hash], COUNT(*) FROM [" + databaseName + "].[dbo].[batterylogs] WHERE owners_hash='" + deviceKey + "' GROUP BY [owners_hash]";
+		sql_request.query( query_str ).then(function(result){
+			resolve( param );
+		}).catch(function(err){
+			reject(err);
+		});
+	});
 
 	// データベースアクセスを伴うのでPromise。
 	// なお、「アクセス頻度」も「最終アクセス」も同じテーブルデータを

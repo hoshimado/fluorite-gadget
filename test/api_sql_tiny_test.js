@@ -23,7 +23,6 @@ var TEST_CONFIG_SQL = { // テスト用
 
 	// Use this if you're on Windows Azure
 	options : {
-		// database : process.env.SQL_DATABASE, // コレ要る？
 		encrypt : true 
 	} // It works well on LOCAL SQL Server if this option is set.
 };

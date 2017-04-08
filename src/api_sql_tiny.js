@@ -42,6 +42,7 @@ console.log( queryFromGet );
 
 /**
  * @type SQL Server接続用の設定変数。
+ * 詳細は⇒ https://www.npmjs.com/package/mssql
  */
 var CONFIG_SQL = {
 	user : process.env.SQL_USER,
@@ -52,7 +53,6 @@ var CONFIG_SQL = {
 
 	// Use this if you're on Windows Azure
 	options : {
-		database : process.env.SQL_DATABASE, // コレ要る？
 		encrypt : true 
 	} // It works well on LOCAL SQL Server if this option is set.
 };
@@ -96,7 +96,7 @@ API_PARAM.prototype.getBatteryValue = function(){ return isDefined( this, "batte
 API_PARAM.prototype.getStartDate = function(){ return isDefined( this, "date_start"); };
 API_PARAM.prototype.getEndDate   = function(){ return isDefined( this, "date_end"); };
 API_PARAM.prototype.getMaxCount = function(){ return isDefined( this, "max_count"); };
-
+exports.API_PARAM = API_PARAM;
 
 
 
@@ -190,27 +190,48 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		return isDeviceAccessRateValied( 
-			config.database, 
-			param,
-			limit.TIMES_PER_HOUR
-		);
-	}).then(function( result ){
-		var param = new API_PARAM( result );
+		return new Promise(function(resolve,reject){
+			isDeviceAccessRateValied( 
+				config.database, 
+				param,
+				limit.TIMES_PER_HOUR
+			).then(function(result){
+				resolve(result);
+			}).catch(function(err){
+				// アクセス上限エラー。
+				reject(); // ⇒次のcatch()が呼ばれる。
+			});
+		});
+	}).then(function( resultAccessRate ){
+		var param = new API_PARAM( resultAccessRate );
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var addBatteryLog2Database = factoryImpl.sql_parts.getInstance("addBatteryLog2Database");
-		return addBatteryLog2Database( config.database, param.getDeviceKey(), param.getBatteryValue() );
-	}).then(function( result ){
-		// 直前の「インサート」処理が成功
-		// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
-		var param = new API_PARAM(result);
-		outJsonData[ "result" ] = "Success to insert " + param.getBatteryValue() + " as batterylog on Database!";
-		outJsonData[ "device_key"] = param.getDeviceKey();
-		return Promise.resolve();
+
+		return new Promise(function(resolve,reject){
+			addBatteryLog2Database( 
+				config.database, 
+				param.getDeviceKey(), 
+				param.getBatteryValue() 
+			).then(function(resultInsert){
+				// 「インサート」処理が成功
+				// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
+				var param = new API_PARAM(resultInsert);
+				outJsonData[ "result" ] = "Success to insert " + param.getBatteryValue() + " as batterylog on Database!";
+				outJsonData[ "device_key"] = param.getDeviceKey();
+				resolve();
+			}).catch(function(err){
+				// 「インサート」処理で失敗。
+				outJsonData[ "error_on_insert" ];
+				reject(); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).catch(function(){
-		// 直前の「インサート」処理は失敗。
+		// どこかでエラーした⇒エラー応答のjson返す。
 		outJsonData[ "error_on_insert" ];
-		return Promise.resolve(); // 異常系処理を終えたので、戻すのは「正常」。
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : 503
+		}); // 異常系処理を終えたので、戻すのは「正常」。
 	}).then(function(){
 		// always 処理
 		var mssql = factoryImpl.mssql.getInstance();

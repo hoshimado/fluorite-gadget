@@ -155,17 +155,67 @@ describe( "sql_parts.js", function(){
 
 
     describe( "::isDeviceAccessRateValid()",function(){
-        // databaseName, deviceKey, maxNumberOfEntrys, rateLimitePerHour 
-        // 引数に、、、「直前のアクセスからの経過時間」を入れるかは未定。
+        var API_PARAM = require("../src/api_sql_tiny.js").API_PARAM;
+        var isDeviceAccessRateValied = sql_parts.isDeviceAccessRateValied;
+        it("正常系",function(){
+            var stub = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stub.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
+            var EXPECTED_MAX_COUNT = 128;
+            var EXPECTED_LIMIT_PER_HOUR = 20; // 3分に1回。
+            var param = new API_PARAM({"device_key" : EXPECTED_DEVICE_KEY, "max_count" : EXPECTED_MAX_COUNT});
 
-        // 直近一時間の記録取得して、その数を数えれば良かろう。
+            stub_query.onCall(0).returns(
+                Promise.resolve([
+                    { 
+                        owners_hash: EXPECTED_DEVICE_KEY + '                                ', // 固定長なので空白がくっつく。
+                        '': 64 // 記録数のスタブ値
+                    } 
+                ])
+            );
+            return shouldFulfilled(
+                isDeviceAccessRateValied( TEST_DATABASE_NAME, param, EXPECTED_LIMIT_PER_HOUR )
+            ).then(function(result){
+                var buf;
+                var EXPECTED_QUERY_STR = "SELECT [owners_hash], COUNT(*) FROM ";
+                EXPECTED_QUERY_STR += "[" + TEST_DATABASE_NAME + "].[dbo].[batterylogs] ";
+                EXPECTED_QUERY_STR += "WHERE owners_hash='" + EXPECTED_DEVICE_KEY + "' GROUP BY [owners_hash]";
 
-        // デバイスキーに応じた最新の日付取る⇒ SELECT MAX(created_at) FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー'
-        // 本来は、別テーブルでIP含めて管理すべきかも？
-        // 引数は、IPアドレスを取得可能なものを渡すように。⇒ルーター側でheaderから取得しておく必要がある？？？
+                assert( stub_query.calledOnce );
 
-        it("正常系");
-        it("異常系");
+                buf = stub_query.getCall(0).args[0].replace(/ +/g,' ');
+                expect( buf ).to.equal( EXPECTED_QUERY_STR );
+
+                expect( result ).to.equal( param );
+            });
+        });
+
+        it("異常系：記録総数が超過",function(){
+            var stub = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stub.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
+            var EXPECTED_MAX_COUNT = 128;
+            var EXPECTED_LIMIT_PER_HOUR = 20; // 3分に1回。
+            var param = new API_PARAM({"device_key" : EXPECTED_DEVICE_KEY, "max_count" : EXPECTED_MAX_COUNT});
+
+            stub_query.onCall(0).returns(
+                Promise.resolve([
+                    { 
+                        owners_hash: EXPECTED_DEVICE_KEY + '                                ', // 固定長なので空白がくっつく。
+                        '': 129 // 記録数のスタブ値
+                    } 
+                ])
+            );
+            return shouldRejected(
+                isDeviceAccessRateValied( TEST_DATABASE_NAME, param, EXPECTED_LIMIT_PER_HOUR )
+            ).catch(function(result){
+                expect(result).to.have.property("item_count").and.equal(129);
+                expect(result).to.have.property("message").add.contain("number of items is limit");
+                // expect( result ).to.equal( param );
+            });
+        });
+
+        it("異常系：１ｈ当たりのアクセス数超過⇒このチェックは後で実装20170408");
     })
 
 
@@ -202,24 +252,55 @@ describe( "sql_parts.js", function(){
         });
     });
     describe( "::addBatteryLog2Database()", function(){
-        it("正常系");
-        /*
-        var now_date = new Date(); ⇒これ、うまいこと±で評価できないかなぁ？
-        var date_str = now_date.toFormat("YYYY-MM-DD HH24:MI:SS.000"); // data-utilsモジュールでの拡張を利用。
-        var battery_str = inputData.battery_value;
-        var query_str = "INSERT INTO dbo.batterylogs(created_at, battery, owners_hash ) VALUES('" + date_str + "', " + battery_str + ", '" + owner_hash + "')";
-        var sql_query = sql_request.query( query_str );
+        var addBatteryLog2Database = sql_parts.addBatteryLog2Database;
+        it("正常系",function(){
+            var clock = sinon.useFakeTimers(); // これで時間が止まる。「1970-01-01 09:00:00.000」に固定される。
+            var stub = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stub.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
+            var EXPECTED_LOG = "バッテリー残量数値";
 
-        var past_date = new Date();
-        past_date.setTime( now_date.getTime() - 7 * 86400000 ); //日数 * 1日のミリ秒数;;
-        expect( result.invalid ).to.not.be.exist;
-        expect( result.owner_hash ).to.equal( dataGet.device_key );
-        expect( result.date_start )
-        .to.equal(past_date.toFormat("YYYY-MM-DD"), "無指定なら、「7日前」として扱う。" );
-        expect( result.date_end ).to.equal( now_date.toFormat("YYYY-MM-DD"), "無指定なら、「今日」として扱う。" );
-        */
+            stub_query.onCall(0).returns(
+                Promise.resolve()
+            );
 
-        it("異常系：SQL応答がエラー");
+            return shouldFulfilled(
+                addBatteryLog2Database( TEST_DATABASE_NAME, EXPECTED_DEVICE_KEY, EXPECTED_LOG )
+            ).then(function(result){
+                var buf;
+                var EXPECTED_QUERY_STR = "INSERT INTO [" + TEST_DATABASE_NAME + "].dbo.batterylogs(created_at, battery, owners_hash ) VALUES('";
+                EXPECTED_QUERY_STR += new Date().toFormat("YYYY-MM-DD HH24:MI:SS.000");
+                EXPECTED_QUERY_STR += "', " + EXPECTED_LOG + ", '" + EXPECTED_DEVICE_KEY + "')";
+
+                clock.restore(); // 時間停止解除。
+
+                assert( stub_query.calledOnce );
+
+                buf = stub_query.getCall(0).args[0].replace(/ +/g,' ');
+                expect( buf ).to.equal( EXPECTED_QUERY_STR );
+
+                expect( result ).to.have.property("battery_value").and.equal( EXPECTED_LOG );
+                expect( result ).to.have.property("device_key").and.equal(EXPECTED_DEVICE_KEY);
+            });
+        });
+
+        it("異常系：SQL応答がエラー", function(){
+            var stub = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stub.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
+            var EXPECTED_LOG = "バッテリー残量数値";
+
+            stub_query.onCall(0).returns(
+                Promise.reject("ERR_MSG")
+            );
+
+            return shouldRejected(
+                addBatteryLog2Database( TEST_DATABASE_NAME, EXPECTED_DEVICE_KEY, EXPECTED_LOG )
+            ).catch(function(result){
+                assert( stub_query.calledOnce );
+                expect( result ).to.equal("ERR_MSG");
+            });
+        });
     });
 
 
@@ -338,7 +419,7 @@ describe( "sql_parts.js", function(){
                 // SELECT created_at, battery FROM [tinydb].[dbo].[batterylogs] WHERE [owners_hash]='キー' AND [created_at] > '2017-02-10' AND [created_at] <= '2017-02-14T23:59';
 
                 assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );
-                expect( stub_query.getCall(0).args[0] ).to.equal(
+                expect( stub_query.getCall(0).args[0].replace(/ +/g,' ') ).to.equal(
                     EXPECTED_QUERY_STR
                 )
             });
@@ -366,7 +447,7 @@ describe( "sql_parts.js", function(){
                 EXPECTED_QUERY_STR += "'";
 
                 assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );
-                expect( stub_query.getCall(0).args[0] ).to.equal(
+                expect( stub_query.getCall(0).args[0].replace(/ +/g,' ') ).to.equal(
                     EXPECTED_QUERY_STR
                 )
             });
@@ -490,7 +571,7 @@ describe( "sql_parts.js", function(){
 
 
                 assert( stub_query.calledOnce, "query()が1度だけ呼ばれること" );
-                expect( stub_query.getCall(0).args[0] ).to.equal(
+                expect( stub_query.getCall(0).args[0].replace(/ +/g,' ') ).to.equal(
                     EXPECTED_QUERY_STR
                 )
             });
