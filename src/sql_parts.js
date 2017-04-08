@@ -39,7 +39,7 @@ var createPromiseForSqlConnection = function( outJsonData, inputDataObj, sqlConf
 			resolve( inputDataObj );
 		}).catch(function( err ){
 			outJsonData[ "errer_on_connection" ] = err;
-			reject();
+			reject(err);
 		});
 	});
 };
@@ -122,7 +122,21 @@ var isDeviceAccessRateValied = function( databaseName, param, rateLimitePerHour 
 		var sql_request = new mssql.Request(); // 【ToDo】：var transaction = new sql.Transaction(/* [connection] */);管理すべき？
 		var query_str = "SELECT [owners_hash], COUNT(*) FROM [" + databaseName + "].[dbo].[batterylogs] WHERE owners_hash='" + deviceKey + "' GROUP BY [owners_hash]";
 		sql_request.query( query_str ).then(function(result){
-			resolve( param );
+			var number_of_recorded_items;
+			
+			if( result && result[0] && result[0][""] ){
+				number_of_recorded_items = result[0][""];
+			}else{
+				number_of_recorded_items = 0; // クエリーが成功している、ことから「未だ格納無し」と判断。
+			}
+			if( number_of_recorded_items < max_count ){
+				resolve( param );
+			}else{
+				reject({
+					"item_count" : number_of_recorded_items,
+					"message" : "The number of items is limit over."
+				});
+			}
 		}).catch(function(err){
 			reject(err);
 		});
@@ -333,6 +347,7 @@ var deleteBatteryLogWhereDeviceKey = function( databaseName, deviceKey, period )
 		query_str += period.end;
 		query_str += " 23:59'"; // その日の最後、として指定する。※「T」は付けない（json変換後だと付いてくるけど）
 	}
+console.log( query_str );
 	return sql_request.query( query_str );
 };
 exports.deleteBatteryLogWhereDeviceKey = deleteBatteryLogWhereDeviceKey;

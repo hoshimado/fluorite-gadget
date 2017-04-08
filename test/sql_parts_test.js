@@ -157,7 +157,7 @@ describe( "sql_parts.js", function(){
     describe( "::isDeviceAccessRateValid()",function(){
         var API_PARAM = require("../src/api_sql_tiny.js").API_PARAM;
         var isDeviceAccessRateValied = sql_parts.isDeviceAccessRateValied;
-        it("正常系",function(){
+        it("正常系：個数が上限以下",function(){
             var stub = createAndHookStubs4Mssql( sql_parts );
             var stub_query = stub.Request_query;
             var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
@@ -189,6 +189,23 @@ describe( "sql_parts.js", function(){
                 expect( result ).to.equal( param );
             });
         });
+        it("正常系：個数がゼロ",function(){
+            var stub = createAndHookStubs4Mssql( sql_parts );
+            var stub_query = stub.Request_query;
+            var EXPECTED_DEVICE_KEY = "ほげほげデバイス";
+            var EXPECTED_MAX_COUNT = 128;
+            var EXPECTED_LIMIT_PER_HOUR = 20; // 3分に1回。
+            var param = new API_PARAM({"device_key" : EXPECTED_DEVICE_KEY, "max_count" : EXPECTED_MAX_COUNT});
+
+            stub_query.onCall(0).returns(
+                Promise.resolve()
+            );
+            return shouldFulfilled(
+                isDeviceAccessRateValied( TEST_DATABASE_NAME, param, EXPECTED_LIMIT_PER_HOUR )
+            ).then(function(result){
+                expect( result ).to.equal( param );
+            });
+        });
 
         it("異常系：記録総数が超過",function(){
             var stub = createAndHookStubs4Mssql( sql_parts );
@@ -210,7 +227,7 @@ describe( "sql_parts.js", function(){
                 isDeviceAccessRateValied( TEST_DATABASE_NAME, param, EXPECTED_LIMIT_PER_HOUR )
             ).catch(function(result){
                 expect(result).to.have.property("item_count").and.equal(129);
-                expect(result).to.have.property("message").add.contain("number of items is limit");
+                expect(result).to.have.property("message").and.contain("number of items is limit");
                 // expect( result ).to.equal( param );
             });
         });
