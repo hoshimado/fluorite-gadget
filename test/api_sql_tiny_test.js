@@ -11,6 +11,7 @@ var sinon = require("sinon");
 var shouldFulfilled = require("promise-test-helper").shouldFulfilled;
 var shouldRejected  = require("promise-test-helper").shouldRejected;
 require('date-utils');
+var ApiCommon_StubAndHooker = require("./z_stubhooker.js").ApiCommon_StubAndHooker;
 
 const api_sql = require("../src/api_sql_tiny.js");
 
@@ -30,61 +31,23 @@ var TEST_CONFIG_SQL = { // テスト用
 
 describe( "api_sql_tiny.js", function(){
 
-    /**
-     * api_vi_batterylog_xxx() のテストで共通的な
-     * Stub生成、フック、リストアを行う。
-     * (※今回限りなので、prototypeじゃなくてコンストラクタでメソッド定義)
-     */
-    function ApiCommon_StubAndHooker(){
-        this.original_prop= {};
-        this.createStubs = function(){
-            return {
-                "CONFIG_SQL" : TEST_CONFIG_SQL, 
-                "mssql" : { "close" : sinon.stub() },
-                "sql_parts" : {
-                    "createPromiseForSqlConnection" : sinon.stub(),
-                    "isOwnerValid" : sinon.stub(),
-                    "isDeviceAccessRateValied" : sinon.stub(),
-                    "getInsertObjectFromPostData" : sinon.stub(),
-                    "addBatteryLog2Database" : sinon.stub(),
-                    "getShowObjectFromGetData" : sinon.stub(),
-                    "getListOfBatteryLogWhereDeviceKey" : sinon.stub(),
-                    "getDeleteObjectFromGetData" : sinon.stub(), 
-                    "deleteBatteryLogWhereDeviceKey" : sinon.stub()
-                }
-            };
-        };
-        /**
-         * メソッドをフックしてStubに差し替える。
-         * ※オリジナルはバックアップしておく。
-         *   「全ての関数をstub outする」の適切か否か不明。
-         *   spy使うなら、オリジナルも必要。⇒なので毎回戻して、次回利用可能にしておく。
-         */
-        this.hookInstance = function( apiInstance, stubs ){
-            var stub_keys = Object.keys( stubs );
-            var n = stub_keys.length;
-
-            // オリジナルをバックアップする。
-            n = stub_keys.length;
-            while( 0<n-- ){
-                this.original_prop[ stub_keys[n] ] = apiInstance.factoryImpl[ stub_keys[n] ].getInstance();
-            }
-
-            // stubを用いてフックする。
-            n = stub_keys.length;
-            while( 0<n-- ){
-                apiInstance.factoryImpl[ stub_keys[n] ].setStub( stubs[ stub_keys[n] ] );
+    var COMMON_STUB_MANAGER = new ApiCommon_StubAndHooker(function(){
+        return {
+            "CONFIG_SQL" : TEST_CONFIG_SQL, 
+            "mssql" : { "close" : sinon.stub() },
+            "sql_parts" : {
+                "createPromiseForSqlConnection" : sinon.stub(),
+                "isOwnerValid" : sinon.stub(),
+                "isDeviceAccessRateValied" : sinon.stub(),
+                "getInsertObjectFromPostData" : sinon.stub(),
+                "addBatteryLog2Database" : sinon.stub(),
+                "getShowObjectFromGetData" : sinon.stub(),
+                "getListOfBatteryLogWhereDeviceKey" : sinon.stub(),
+                "getDeleteObjectFromGetData" : sinon.stub(), 
+                "deleteBatteryLogWhereDeviceKey" : sinon.stub()
             }
         };
-        this.restoreOriginal = function( apiInstance ){
-            var n = stub_keys.length;
-            while( 0<n-- ){
-                apiInstance.factoryImpl[ stub_keys[n] ].setStub( this.original_prop[ stub_keys[n] ] );
-            }
-
-        };
-    };
-    var COMMON_STUB_MANAGER = new ApiCommon_StubAndHooker();
+    });
     
     /**
      * @description writeJsonAsString() のスタブ生成
