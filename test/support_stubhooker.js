@@ -11,6 +11,7 @@
  */
 var ApiCommon_StubAndHooker = function( stubsFactory ){
     this.original_prop= {};
+    this.stub_keys;
     this.createStubs = stubsFactory;
     /**
      * メソッドをフックしてStubに差し替える。
@@ -21,6 +22,7 @@ var ApiCommon_StubAndHooker = function( stubsFactory ){
     this.hookInstance = function( apiInstance, stubs ){
         var stub_keys = Object.keys( stubs );
         var n = stub_keys.length;
+        this.stub_keys = stub_keys;
 
         // オリジナルをバックアップする。
         n = stub_keys.length;
@@ -35,6 +37,7 @@ var ApiCommon_StubAndHooker = function( stubsFactory ){
         }
     };
     this.restoreOriginal = function( apiInstance ){
+        var stub_keys = this.stub_keys;
         var n = stub_keys.length;
         while( 0<n-- ){
             apiInstance.factoryImpl[ stub_keys[n] ].setStub( this.original_prop[ stub_keys[n] ] );

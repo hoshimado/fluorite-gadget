@@ -11,7 +11,7 @@ var sinon = require("sinon");
 var shouldFulfilled = require("promise-test-helper").shouldFulfilled;
 var shouldRejected  = require("promise-test-helper").shouldRejected;
 require('date-utils');
-var ApiCommon_StubAndHooker = require("./z_stubhooker.js").ApiCommon_StubAndHooker;
+var ApiCommon_StubAndHooker = require("./support_stubhooker.js").ApiCommon_StubAndHooker;
 
 const api_sql = require("../src/api_sql_tiny.js");
 
@@ -176,21 +176,20 @@ describe( "api_sql_tiny.js", function(){
     };
 
     describe("::api_v1_batterylog_show()", function(){
-        /**
-         * @type beforeEachで初期化される。
-         */
         var stubs;
         var api_v1_batterylog_show = api_sql.api_v1_batterylog_show;
 
+        /**
+         * @type beforeEachで初期化される。
+         */
         beforeEach(function(){ // 内部関数をフックする。
             stubs = COMMON_STUB_MANAGER.createStubs();
-            stub_keys = Object.keys( stubs );
 
             COMMON_STUB_MANAGER.hookInstance( api_sql, stubs );
         });
         afterEach(function(){
             COMMON_STUB_MANAGER.restoreOriginal( api_sql );
-        });  // 今は無し。
+        });
 
         // ここからテスト。
         it("正常系", function(){

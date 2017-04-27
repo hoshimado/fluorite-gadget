@@ -12,45 +12,45 @@ var factoryImpl = { // require()を使う代わりに、new Factory() する。
     "mssql" : new lib.Factory4Require("mssql"),  // https://www.npmjs.com/package/mssql
     "sql_parts" : new lib.Factory4Require("./sql_parts.js")
 };
+var _SQL_CONNECTION_CONFIG = require("./sql_config.js");
+factoryImpl[ "CONFIG_SQL" ] = new lib.Factory(_SQL_CONNECTION_CONFIG.CONFIG_SQL);
+
 
 // UTデバッグ用のHookポイント。運用では外部公開しないメソッドはこっちにまとめる。
 exports.factoryImpl = factoryImpl;
 
 
-/**
- * @type SQL Server接続用の設定変数。
- * 詳細は⇒ https://www.npmjs.com/package/mssql
- */
-var CONFIG_SQL = {
-	user : process.env.SQL_USER,
-	password : process.env.SQL_PASSWORD,
-	server : process.env.SQL_SERVER, // You can use 'localhost\\instance' to connect to named instance
-	database : process.env.SQL_DATABASE,
-	stream : false,  // if true, query.promise() is NOT work! // You can enable streaming globally
-
-	// Use this if you're on Windows Azure
-	options : {
-		encrypt : true 
-	} // It works well on LOCAL SQL Server if this option is set.
+var openSqlQyery = function(){
+	var mssql = factoryImpl.mssql.getInstance();
+	return new mssql.Request();
 };
-factoryImpl[ "CONFIG_SQL" ] = new lib.Factory( CONFIG_SQL );
-// 即時関数でCONFIG_SQLを隠蔽してもいいんだけど、、、面倒なのでパス。
-
-
-var grantPathFromSerialNumber = function( serialNumber ){
-
+var closeSqlQuery = function(){
+	var mssql = factoryImpl.mssql.getInstance();
+	mssql.close();
 };
-var updateCalledWithTargetSerial = function( serialNumber ){
-	
-}
-
-factoryImpl[ "sql_enumerate" ] = new lib.Factory({
-	"grantPath" : grantPathFromSerialNumber,
-	"updateCalled" : updateCalledWithTargetSerial
+factoryImpl["simple_sql"] = new lib.Factory({
+	"open"  : openSqlQyery,
+	"close" : closeSqlQuery
 });
 
 
+
+var grantPathFromSerialNumber = function( databaseName, serialNumber ){
+
+	return Promise.resolve( "url is expected." );
+};
+
+
+var updateCalledWithTargetSerial = function( databaseName, serialNumber, currentCalledCount ){
+	return Promise.resolve( "update is not work." );
+};
+
+factoryImpl["grantPath"] = new lib.Factory( grantPathFromSerialNumber );
+factoryImpl["updateCalled"] = new lib.Factory( updateCalledWithTargetSerial );
+
+
 exports.api_v1_serialpath_grant = function( queryFromGet, dataFromPost ){
+	return Promise.resolve("未だないも実装していない");
 /*    
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	var getInsertObjectFromPostData = factoryImpl.sql_parts.getInstance( "getInsertObjectFromPostData");
