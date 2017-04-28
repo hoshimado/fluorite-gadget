@@ -35,80 +35,126 @@ factoryImpl["simple_sql"] = new lib.Factory({
 
 
 
-var grantPathFromSerialNumber = function( databaseName, serialNumber ){
+var grantPathFromSerialNumber = function( sqlConnection, databaseName, serialNumber ){
+	var query_str = "SELECT [id], [serial], [called], [max_entrys], [url]";
+	query_str += " FROM [" + databaseName + "].dbo.[redirect_serial]";
+	query_str += " WHERE [serial]='" + serialNumber + "'"
 
-	return Promise.resolve( "url is expected." );
+	return sqlConnection.query( query_str ).then(function(result){
+		var item = result[0] ? result[0] : null;
+
+		if( item ){
+			return Promise.resolve({
+				"path" : item.url.trim(),
+				"called" : item.called,
+				"max_entrys" : item.max_entrys
+			});
+		}else{
+			return Promise.reject("Invalid Serial Key.");
+		}
+	}).catch(function(){
+		return Promise.reject("failed to query1.");
+	});
 };
 
 
-var updateCalledWithTargetSerial = function( databaseName, serialNumber, currentCalledCount ){
-	return Promise.resolve( "update is not work." );
+var updateCalledWithTargetSerial = function( sqlConnection, databaseName, serialNumber, grantedPath, currentCalledCount, maxEntrys ){
+	var query_str = "UPDATE [" + databaseName + "].[dbo].[redirect_serial]";
+	query_str += " SET [called]=" + currentCalledCount;
+	query_str += " WHERE [serial]='" + serialNumber + "'"
+
+	return sqlConnection.query( query_str ).then(function(){
+		return Promise.resolve({
+			"path" : grantedPath,
+			"left" : maxEntrys - currentCalledCount
+		});
+	}).catch(function(){
+		return Promise.reject("failed to query2.");
+	});
 };
 
 factoryImpl["grantPath"] = new lib.Factory( grantPathFromSerialNumber );
 factoryImpl["updateCalled"] = new lib.Factory( updateCalledWithTargetSerial );
 
 
+
+
+
 exports.api_v1_serialpath_grant = function( queryFromGet, dataFromPost ){
-	return Promise.resolve("未だないも実装していない");
-/*    
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
-	var getInsertObjectFromPostData = factoryImpl.sql_parts.getInstance( "getInsertObjectFromPostData");
 	var outJsonData = {};
-	var inputData = getInsertObjectFromPostData( dataFromPost );
-
-    // inputDataの検証
-
+	var inputData = {
+		"serialKey" : dataFromPost.serial ? dataFromPost.serial : ""
+	};
 
 	return createPromiseForSqlConnection( 
 		outJsonData, 
 		inputData, 
 		factoryImpl.CONFIG_SQL.getInstance()
 	).then(function( inputData ){
-		var param = new API_PARAM( resultAccessRate );
 		var config = factoryImpl.CONFIG_SQL.getInstance();
-		var addBatteryLog2Database = factoryImpl.sql_parts.getInstance("addBatteryLog2Database");
+		var simple_sql = factoryImpl.simple_sql.getInstance();
+		var sql_connection = simple_sql.open();
+		var serialKey = inputData.serialKey;
+		var grantedPath = "";
 
 		return new Promise(function(resolve,reject){
-			addBatteryLog2Database( 
-				config.database, 
-				param.getDeviceKey(), 
-				param.getBatteryValue() 
-			).then(function(resultInsert){
-				// 「インサート」処理が成功
-				// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
-				var param = new API_PARAM(resultInsert);
-				outJsonData[ "result" ] = "Success to insert " + param.getBatteryValue() + " as batterylog on Database!";
-				outJsonData[ "device_key"] = param.getDeviceKey();
-				resolve();
-			}).catch(function(err){
-				// 「インサート」処理で失敗。
-				outJsonData[ "error_on_insert" ];
-				reject( err ); // ⇒次のcatch()が呼ばれる。
+			var grantPath = factoryImpl.grantPath.getInstance();
+			grantPath(sql_connection, config.database, serialKey)
+			.catch(function( err ){
+				reject( err ); // 一気に抜ける。
+			}).then(function(result){
+				var updateCalled = factoryImpl.updateCalled.getInstance();
+				var calledCount = result.called;
+				var maxCount = result.max_entrys;
+
+				if( calledCount < maxCount ){
+					return updateCalled(
+						sql_connection, 
+						config.database, 
+						serialKey, 
+						result.path, 
+						calledCount + 1, 
+						maxCount 
+					);
+				}else{
+					reject({
+						"message" : "Not Granted",
+						"http_status" : 403
+					}); // 一気に抜ける。
+				}
+			}).then(function( result ){
+				resolve({
+					"path" : result.path,
+					"left" : result.left
+				})
+			}).catch(function(){
+				reject("update is ERROR");
 			});
 		});
-	}).then(function(){
+	}).then(function(result){
 		// ここまですべて正常終了
-		var mssql = factoryImpl.mssql.getInstance();
-		mssql.close(); // 【ToDo】create～（）に合わせてWrappwerすべきかな。⇒Test側のstubも合わせて修正。
+		var simple_sql = factoryImpl.simple_sql.getInstance();
+		simple_sql.close();
 
+		outJsonData["path"] = result.path;
+		outJsonData["left"] = result.left;
 		return Promise.resolve({
 			"jsonData" : outJsonData,
 			"status" : 200 // OK
 		});
 	}).catch(function(err){
 		// どこかでエラーした⇒エラー応答のjson返す。
-		var mssql = factoryImpl.mssql.getInstance();
+		var simple_sql = factoryImpl.simple_sql.getInstance();
 		var http_status = (err && err.http_status) ? err.http_status : 500;
 
-		mssql.close();
-		outJsonData[ "error_on_add" ];
+		simple_sql.close();
+		outJsonData[ "error_on_add" ] = err;
 		return Promise.resolve({
 			"jsonData" : outJsonData,
 			"status" : http_status
 		}); // 異常系処理を終えたので、戻すのは「正常」。
     });
-*/
 };
 
 

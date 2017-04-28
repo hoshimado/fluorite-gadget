@@ -56,12 +56,14 @@ describe( "api_sql_enumerate.js", function(){
 
             // こっちは記録するだけ。
             orignal["grantPath"] = api_enumerate.factoryImpl.grantPath.getInstance();
+            orignal["updateCalled"] = api_enumerate.factoryImpl.updateCalled.getInstance();
         });
         afterEach(function(){
             COMMON_STUB_MANAGER.restoreOriginal( api_enumerate );
 
             // こっちは独自に戻す。
             api_enumerate.factoryImpl.grantPath.setStub( orignal.grantPath );
+            api_enumerate.factoryImpl.updateCalled.setStub( orignal.updateCalled );
         });
 
         it("正常系", function(){
@@ -69,10 +71,11 @@ describe( "api_sql_enumerate.js", function(){
             var EXPECTED_CALLED_COUNT = 4;
             var EXPECTED_MAX_ENTRYS = 32;
             var EXPECTED_INPUT_DATA = {
-                "serialkey" : "abc123456789noncase32number16MAX" // dataFromPostとは異なるkeyなので注意。
+                "serialKey" : "abc123456789noncase32number16MAX" // dataFromPostとは異なるkeyなので注意。
             };
             var stub_grantPath = sinon.stub();
             var stub_updateCalled = sinon.stub()
+            var stub_request_query = {}; // これは引き渡すだけ。今回のテスト範囲では実行されない。
             var queryFromGet = {};
             var dataFromPost = {
                "serial" : "abc123456789noncase32number16MAX"
@@ -80,6 +83,9 @@ describe( "api_sql_enumerate.js", function(){
 
             stubs.sql_parts.createPromiseForSqlConnection.onCall(0).returns(
                 Promise.resolve( EXPECTED_INPUT_DATA )
+            );
+            stubs.simple_sql.open.onCall(0).returns(
+                stub_request_query
             );
             stub_grantPath.onCall(0).returns(
                 Promise.resolve({ // ※updateとワンセット動作すべきなので、シリアルキーは外側で保持する。
@@ -89,8 +95,13 @@ describe( "api_sql_enumerate.js", function(){
                 })
             );
             stub_updateCalled.onCall(0).returns(
-                Promise.resolve()
+                Promise.resolve({
+                    "path" : EXPECTED_PATH,
+                    "left" : EXPECTED_MAX_ENTRYS - EXPECTED_CALLED_COUNT -1
+                })
             );
+            api_enumerate.factoryImpl.grantPath.setStub( stub_grantPath );
+            api_enumerate.factoryImpl.updateCalled.setStub( stub_updateCalled );
 
             // テストする。
             return shouldFulfilled(
@@ -100,18 +111,29 @@ describe( "api_sql_enumerate.js", function(){
                 var createConnect = stubs.sql_parts.createPromiseForSqlConnection;
                 assert(createConnect.calledOnce, "createPromiseForSqlConnection()が1度呼ばれること");
                 expect(createConnect.getCall(0).args[0]).to.be.exist; // outJsonData
-                expect(createConnect.getCall(0).args[1]).to.equal( EXPECTED_INPUT_DATA );
+                expect(createConnect.getCall(0).args[1]).to.have.property("serialKey").and.equal( dataFromPost.serial );
                 expect(createConnect.getCall(0).args[2]).to.deep.equal( TEST_CONFIG_SQL );
+
+                // SQL接続は生成済みで、クエリーの生成からスタートする。
+                assert(stubs.simple_sql.open.calledOnce, "simple_sql.open()が一度呼ばれること");
 
                 // 接続したやつで「パス」ほかを取得する（正常）。
                 assert(stub_grantPath.calledOnce, "grantPath()が1度呼ばれること");
-                assert(stub_grantPath.getCall(0).args[0]).to.equal(TEST_CONFIG_SQL.database);
-                assert(stub_grantPath.getCall(0).args[1]).to.equal(EXPECTED_INPUT_DATA.serialkey)
+                expect(stub_grantPath.getCall(0).args[0]).to.equal(stub_request_query);
+                expect(stub_grantPath.getCall(0).args[1]).to.equal(TEST_CONFIG_SQL.database);
+                expect(stub_grantPath.getCall(0).args[2]).to.equal(EXPECTED_INPUT_DATA.serialKey)
 
                 // 接続したやつで、対象データを更新する。
                 assert(stub_updateCalled.calledOnce, "updateCalled()が1度呼ばれること");
-                assert(stub_updateCalled.getCall(0).args[0]).to.equal(TEST_CONFIG_SQL.database);
-                assert(stub_updateCalled.getCall(0).args[1]).to.equal(EXPECTED_INPUT_DATA.serialkey)
+                expect(stub_updateCalled.getCall(0).args[0]).to.equal(stub_request_query);
+                expect(stub_updateCalled.getCall(0).args[1]).to.equal(TEST_CONFIG_SQL.database);
+                expect(stub_updateCalled.getCall(0).args[2]).to.equal(EXPECTED_INPUT_DATA.serialKey)
+                expect(stub_updateCalled.getCall(0).args[3]).to.equal(EXPECTED_PATH);
+                expect(stub_updateCalled.getCall(0).args[4]).to.equal(EXPECTED_CALLED_COUNT +1);
+                expect(stub_updateCalled.getCall(0).args[5]).to.equal(EXPECTED_MAX_ENTRYS);
+
+                // SQL接続の終了処理をチェック。
+                assert(stubs.simple_sql.close.calledOnce, "simple_sql.close()が一度呼ばれること");
 
                 expect(result).to.have.property("status");
                 expect(result).to.have.property("jsonData");
@@ -139,15 +161,15 @@ describe( "api_sql_enumerate.js", function(){
 
         // ここからテスト。
         it("正常系", function(){
-            var stub_request = {
-                "query" : sinon.stub()
-            };
             var IN_SERIALKEY = "abc123456789noncase32number16MAX";
             var EXPECTED_PATH = "http://fluorite.halfmoon.jp/word/tbf02_azure_sql/";
             var EXPECTED_CALLED_COUNT = 8;
             var EXPECTED_MAX_ENTRYS = 16;
-            stubs.simple_sql.open.onCall(0).returns( stub_request );
-            stub_request.query.onCall(0).returns(
+            var stub_request_query = sinon.stub();
+            var sqlConnection = {
+                "query" : stub_request_query
+            };
+            stub_request_query.onCall(0).returns(
                 Promise.resolve([// 配列。
                     { 
                         "id": 1,
@@ -161,19 +183,16 @@ describe( "api_sql_enumerate.js", function(){
             );
 
             return shouldFulfilled(
-                grantPathFromSerialNumber(TEST_CONFIG_SQL.database, IN_SERIALKEY)
+                grantPathFromSerialNumber(sqlConnection, TEST_CONFIG_SQL.database, IN_SERIALKEY)
             ).then(function(result){
                 var buf;
                 var EXPECTED_QUERY_STR = "SELECT [id], [serial], [called], [max_entrys], [url]";
                 EXPECTED_QUERY_STR += " FROM [" + TEST_CONFIG_SQL.database + "].dbo.[redirect_serial]";
                 EXPECTED_QUERY_STR += " WHERE [serial]='" + IN_SERIALKEY + "'";
 
-                // SQL接続は生成済みで、クエリーの生成からスタートする。
-                assert(stubs.simple_sql.open.calledOnce, "simple_sql.open()が一度呼ばれること");
-
                 // クエリーが、期待した文字列で呼ばれること。
-                assert(stub_request.query.calledOnce, "mssql::request::query()が1度呼ばれること");
-                buf = stub_request.query.getCall(0).args[0].replace(/ +/g,' ');
+                assert(stub_request_query.calledOnce, "mssql::request::query()が1度呼ばれること");
+                buf = stub_request_query.getCall(0).args[0].replace(/ +/g,' ');
                 expect( buf ).to.equal( EXPECTED_QUERY_STR );
 
                 expect(result).to.have.property("path").and.equal(EXPECTED_PATH); // 後ろの空白は除去済みであること。
@@ -202,34 +221,44 @@ describe( "api_sql_enumerate.js", function(){
         // ここからテスト。
 
         it("正常系", function(){
-            var stub_request = {
-                "query" : sinon.stub()
-            };
             var IN_SERIALKEY = "abc123456789noncase32number16MAX";
-            var CURRENT_CALLED_COUNT = 8;
+            var EXPECTED_PATH = "期待されたパス";
+            var EXPECTED_MAX = 16;
+            var CURRENT_CALLED_COUNT = 9;
+            var stub_request_query = sinon.stub();
+            var sqlConnection = {
+                "query" : stub_request_query
+            };
 
             // ↓たぶん不要なハズ。
             // stubs.simple_sql.open.onCall(0).returns( stub_request );
 
-            stub_request.query.onCall(0).returns(
+            stub_request_query.onCall(0).returns(
                 Promise.resolve()
             );
 
             return shouldFulfilled(
-                updateCalledWithTargetSerial(TEST_CONFIG_SQL.database, IN_SERIALKEY, CURRENT_CALLED_COUNT)
+                updateCalledWithTargetSerial(
+                    sqlConnection, 
+                    TEST_CONFIG_SQL.database, 
+                    IN_SERIALKEY, 
+                    EXPECTED_PATH,
+                    CURRENT_CALLED_COUNT, 
+                    EXPECTED_MAX)
             ).then(function(result){
                 var buf;
                 // ここから続き。
                 var EXPECTED_QUERY_STR = "UPDATE [" + TEST_CONFIG_SQL.database + "].[dbo].[redirect_serial]";
-                EXPECTED_QUERY_STR += " SET called=1";
+                EXPECTED_QUERY_STR += " SET [called]=" + CURRENT_CALLED_COUNT;
                 EXPECTED_QUERY_STR += " WHERE [serial]='" + IN_SERIALKEY + "'";
 
                 // クエリー生成済みなので、呼び出し文字列チェックからスタートする。
-                assert(stub_request.query.calledOnce, "mssql::request::query()が1度呼ばれること");
-                buf = stub_request.query.getCall(0).args[0].replace(/ +/g,' ');
+                assert(stub_request_query.calledOnce, "mssql::request::query()が1度呼ばれること");
+                buf = stub_request_query.getCall(0).args[0].replace(/ +/g,' ');
                 expect( buf ).to.equal( EXPECTED_QUERY_STR );
 
-                expect(result).to.not.be.exist;
+                expect(result).to.have.property("path").and.equal(EXPECTED_PATH);
+                expect(result).to.have.property("left").and.equal( EXPECTED_MAX - CURRENT_CALLED_COUNT );
             });
         });
     });
