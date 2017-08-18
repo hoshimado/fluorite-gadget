@@ -48,7 +48,7 @@ factoryImpl[ "CONFIG_SQL" ] = new lib.Factory(_SQL_CONNECTION_CONFIG.CONFIG_SQL)
  * @type アクセス回数など
  */
 var RATE_LIMIT = {
-	TIMES_PER_HOUR : 30
+	TIMES_PER_HOUR : process.env.RATE_PER_HOUR ? process.env.RATE_PER_HOUR : 30
 };
 factoryImpl[ "RATE_LIMIT" ] = new lib.Factory( RATE_LIMIT );
 
