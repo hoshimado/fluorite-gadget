@@ -109,6 +109,52 @@ exports.api_v1_sql = function( queryFromGet, dataFromPost ){
 
 
 
+var sqlite = require("./sql_lite_db.js");
+var db = sqlite.init('./db/demo.sqlite3');
+/**
+ * SQLite Serverへの接続テストAPI
+ */
+exports.api_v1_sqlite = function( queryFromGet, dataFromPost ){
+	db.serialize(function() {
+	  db.run("CREATE TABLE lorem (info TEXT)");
+	
+	  var stmt = db.prepare("INSERT INTO lorem VALUES (?)");
+	  for (var i = 0; i < 10; i++) {
+		  stmt.run("Ipsum " + i);
+	  }
+	  stmt.finalize();
+	
+	  db.each("SELECT rowid AS id, info FROM lorem", function(err, row) {
+		  console.log(row.id + ": " + row.info);
+	  });
+	});
+	
+	db.close();
+	// return Promise.resolve();
+	return new Promise(function(resolve,reject){
+		setTimeout(function(){
+			resolve();
+		},4000)
+	});
+};
+exports.api_v1_sqlite_read = function( queryFromGet, dataFromPost ){
+	var trial_buf = { "list" : [] };
+	db.serialize(function() {
+	  db.each("SELECT rowid AS id, info FROM lorem", function(err, row) {
+		  trial_buf.list.push( row.id + ": " + row.info );
+	  });
+	});
+	db.close();
+	return new Promise(function(resolve,reject){
+		setTimeout(function(){
+			resolve({
+				"jsonData" : trial_buf, // outJsonData,
+				"status" : 200 // OK
+			});
+		},4000)
+	});
+};
+
 
 
 
