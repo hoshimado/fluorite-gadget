@@ -83,6 +83,9 @@ exports.API_PARAM = API_PARAM;
 
 
 
+// 2017/08/21～のテストで利用
+var fs = require("fs");
+
 /**
  * SQL Server への接続テストAPI
  */
@@ -93,6 +96,18 @@ exports.api_v1_sql = function( queryFromGet, dataFromPost ){
 
 	return connect.then(function(){
 		// 何もしない。
+		// 2017/08/21 ～ちょいとテスト
+		var target_file = "./db/access_log_update_test.txt"
+		var date = new Date(), str = "";
+		str = date.toFormat("YYYY/MM/DD HH24:MI:SS") + "\r\n";
+		fs.appendFile( target_file, str, function(err){
+			if(err){
+				return Promise.reject(err);
+			}else{
+				return Promise.resolve();
+			}
+		});
+
 	}).catch(function(err){
 		return Promise.resolve({
 			"jsonData" : err,
