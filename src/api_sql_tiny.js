@@ -129,24 +129,32 @@ exports.api_v1_sqlite = function( queryFromGet, dataFromPost ){
 	  });
 	});
 	
-	db.close();
-	// return Promise.resolve();
+	// db.close();
 	return new Promise(function(resolve,reject){
 		setTimeout(function(){
-			resolve();
+			resolve({
+				"jsonData" : {"message" : "ok"}, // outJsonData,
+				"status" : 200 // OK
+			});
 		},4000)
 	});
 };
 exports.api_v1_sqlite_read = function( queryFromGet, dataFromPost ){
 	var trial_buf = { "list" : [] };
+console.log(trial_buf);
 	db.serialize(function() {
 	  db.each("SELECT rowid AS id, info FROM lorem", function(err, row) {
-		  trial_buf.list.push( row.id + ": " + row.info );
+		  if(err){
+			trial_buf.list.push( err );
+		  }else{
+			trial_buf.list.push( row.id + ": " + row.info );
+		  }
 	  });
 	});
-	db.close();
 	return new Promise(function(resolve,reject){
 		setTimeout(function(){
+console.log(trial_buf);
+db.close();
 			resolve({
 				"jsonData" : trial_buf, // outJsonData,
 				"status" : 200 // OK

@@ -15,6 +15,9 @@ exports.api_v1_summarylist = api_clearly.api_v1_summarylist;
 exports.api_v1_show = api_sql.api_v1_show;
 exports.api_v1_sql = api_sql.api_v1_sql;
 
+exports.api_v1_sqlite = api_sql.api_v1_sqlite;
+exports.api_v1_sqlite_read = api_sql.api_v1_sqlite_read;
+
 
 exports.api_v1_batterylog_add = api_sql.api_v1_batterylog_add;
 exports.api_v1_batterylog_show = api_sql.api_v1_batterylog_show;
