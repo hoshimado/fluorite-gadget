@@ -19,6 +19,8 @@ exports.factoryImpl = factoryImpl;
 
 
 /**
+ * ※SQL接続生成＋Json応答（OK/NG）、なのでmssqlを直接ではなく、この関数を定義する。
+ * 
  * GET/POSTデータのフォーマットが適切ならば、SQL接続のPromiseを返却する。
  * フォーマットが不正の時は、エラーメッセージを格納＆reject()を返却する。
  * 問題なければ、resolve( inputDataObj )を返却する。

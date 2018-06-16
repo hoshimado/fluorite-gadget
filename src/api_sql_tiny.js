@@ -38,26 +38,9 @@ console.log( queryFromGet );
 	}
 };
 
+var _SQL_CONNECTION_CONFIG = require("./sql_config.js");
+factoryImpl[ "CONFIG_SQL" ] = new lib.Factory(_SQL_CONNECTION_CONFIG.CONFIG_SQL);
 
-
-/**
- * @type SQL Server接続用の設定変数。
- * 詳細は⇒ https://www.npmjs.com/package/mssql
- */
-var CONFIG_SQL = {
-	user : process.env.SQL_USER,
-	password : process.env.SQL_PASSWORD,
-	server : process.env.SQL_SERVER, // You can use 'localhost\\instance' to connect to named instance
-	database : process.env.SQL_DATABASE,
-	stream : false,  // if true, query.promise() is NOT work! // You can enable streaming globally
-
-	// Use this if you're on Windows Azure
-	options : {
-		encrypt : true 
-	} // It works well on LOCAL SQL Server if this option is set.
-};
-factoryImpl[ "CONFIG_SQL" ] = new lib.Factory( CONFIG_SQL );
-// 即時関数でCONFIG_SQLを隠蔽してもいいんだけど、、、面倒なのでパス。
 
 
 
