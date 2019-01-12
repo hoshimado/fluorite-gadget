@@ -119,7 +119,9 @@ const _getScrapingQuery = ( queryGetMethod )=>{
 	}
 	// 互換性のために「keyword」があれば、「q」として読み替える。
 	// ※2016/09/30までは、指定したkye名のみ許可してた。keywordが来たらqに読み替えてた。
-	if( queryGetMethod.hasOwnProperty( "keyword" ) ){
+	if( Object.prototype.hasOwnProperty.call(queryGetMethod, "keyword" ) ){
+		// ↑Node.js側のバグ？最新版なら修正済み？ https://github.com/hapijs/hapi/issues/3280
+		// ToDo: 最新版にして確認する。
 		query[ "q" ] = queryGetMethod[ "keyword" ];
 	}
 
