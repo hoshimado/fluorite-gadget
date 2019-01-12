@@ -52,4 +52,6 @@ coverage
 
 # Local bat file
 *.bat
+*.exe
+test_curl.txt
 
