@@ -9,8 +9,7 @@ require('date-utils'); // Data() クラスのtoString()を拡張してくれる�
 
 var lib = require("./factory4require.js");
 var factoryImpl = { // require()を使う代わりに、new Factory() する。
-    "mssql" : new lib.Factory4Require("mssql"),  // https://www.npmjs.com/package/mssql
-    "sql_parts" : new lib.Factory4Require("./sql_parts.js")
+    "mssql" : new lib.Factory4Require("mssql")  // https://www.npmjs.com/package/mssql
 };
 
 // UTデバッグ用のHookポイント。運用では外部公開しないメソッドはこっちにまとめる。

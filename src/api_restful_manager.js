@@ -5,7 +5,6 @@
 */
 const api_clearly = require("./api_clearly.js");
 const api_sql = require("./api_sql_tiny.js");
-const api_enumerate = require("./api_sql_enumerate.js");
 
 // ***********************
 // 以下でexportしたメソッドが「_⇒/」で置き換えたURLでAPIとして提供される。
